@@ -3,6 +3,11 @@ name = "gt-mcp-cli"
 version = "0.1.0"
 edition = "2021"
 description = "Command-line client for the gt-mcp server (Gas Town orchestrator MCP surface)."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/gt-core-labs/gt-mcp-cli"
+readme = "README.md"
+keywords = ["mcp", "cli", "gastown"]
+categories = ["command-line-utilities"]
 
 [[bin]]
 name = "gt-mcp-cli"
