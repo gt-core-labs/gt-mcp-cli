@@ -19,8 +19,18 @@ gt-mcp-cli tools --full          # full input schemas (JSON)
 gt-mcp-cli resources             # list domain snapshot resource URIs
 gt-mcp-cli call <name> [--arg k=v ...] [--json '{...}']
 gt-mcp-cli read <uri>            # e.g. gt-mcp-cli read gt://agent/sessions
+
+gt-mcp-cli compose up            # clone gt-app deploy repo + docker compose up -d
+gt-mcp-cli compose down          # docker compose down (add --volumes to drop data)
 ```
 
+- **`compose`** is offline (no MCP session): it clones/updates the
+  [`gt-app`](https://github.com/gt-core-labs/gt-app) deploy repo into
+  `~/.local/share/gt-app` (override with `--dir`/`GT_APP_DIR`) and drives
+  `docker compose` against it. `up` pulls the published
+  `codecsrayo/gt-core-mcp-server` image and starts the dolt+pg+mcp stack;
+  `down --volumes` also removes the data volumes. Override the repo with
+  `--repo`/`GT_APP_REPO`.
 - Endpoint: `--url` or `GT_MCP_URL` (default `http://127.0.0.1:8765/mcp`).
 - `--arg k=v` values are parsed as JSON (`priority=0` → number, `weekly=true` → bool),
   falling back to a string. `--json` supplies the whole argument object and wins over `--arg`.

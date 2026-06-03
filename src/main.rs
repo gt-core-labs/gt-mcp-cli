@@ -11,10 +11,12 @@ use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::ServiceExt;
 use serde_json::{Map, Value};
 
+mod compose;
 mod config;
 mod prime;
 mod workspace_cmd;
 
+use compose::ComposeAction;
 use config::Config;
 use workspace_cmd::WorkspaceAction;
 
@@ -69,6 +71,12 @@ enum Command {
         #[command(subcommand)]
         action: WorkspaceAction,
     },
+    /// Manage the gt-app deploy stack: `up` clones the deploy repo + `docker compose up -d`,
+    /// `down` tears it down. Offline — drives git + docker, never opens an MCP session.
+    Compose {
+        #[command(subcommand)]
+        action: ComposeAction,
+    },
 }
 
 #[tokio::main]
@@ -79,6 +87,12 @@ async fn main() -> Result<()> {
     // short-circuits before the transport connect (which would otherwise require a live server).
     if let Command::Prime { json } = cli.cmd {
         std::process::exit(prime::run(json));
+    }
+
+    // `compose` is offline too — it drives git + docker compose against the gt-app deploy
+    // repo and never opens an MCP session, so it short-circuits before the transport connect.
+    if let Command::Compose { action } = &cli.cmd {
+        std::process::exit(compose::run(action));
     }
 
     // `workspace use` is offline too — it only prints an `export` line for the shell to eval,
@@ -156,6 +170,7 @@ async fn main() -> Result<()> {
             }
             // Handled offline above, before the transport connect.
             Command::Prime { .. } => unreachable!("prime short-circuits before connect"),
+            Command::Compose { .. } => unreachable!("compose short-circuits before connect"),
         }
         Ok(())
     }
