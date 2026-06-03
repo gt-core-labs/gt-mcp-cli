@@ -11,22 +11,23 @@ use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::ServiceExt;
 use serde_json::{Map, Value};
 
+mod config;
 mod prime;
 mod workspace_cmd;
 
+use config::Config;
 use workspace_cmd::WorkspaceAction;
+
+/// Builtin MCP endpoint, used when neither `--url`/`GT_MCP_URL` nor `config.toml` supplies one.
+const DEFAULT_MCP_URL: &str = "http://127.0.0.1:8765/mcp";
 
 #[derive(Parser)]
 #[command(name = "gt-mcp-cli", version, about = "CLI client for the gt-mcp server")]
 struct Cli {
-    /// MCP endpoint URL (streamable HTTP).
-    #[arg(
-        long,
-        env = "GT_MCP_URL",
-        default_value = "http://127.0.0.1:8765/mcp",
-        global = true
-    )]
-    url: String,
+    /// MCP endpoint URL (streamable HTTP). Falls back to `config.toml` `endpoints.mcp`, then the
+    /// builtin default, when neither this flag nor `GT_MCP_URL` is set.
+    #[arg(long, env = "GT_MCP_URL", global = true)]
+    url: Option<String>,
 
     #[command(subcommand)]
     cmd: Command,
@@ -88,11 +89,19 @@ async fn main() -> Result<()> {
         }
     }
 
-    let transport = StreamableHttpClientTransport::from_uri(cli.url.clone());
+    // Resolve the endpoint only for the online commands: flag/env (clap) > config.toml > builtin.
+    let url = cli.url.clone().unwrap_or_else(|| {
+        Config::load()
+            .mcp_endpoint()
+            .map(str::to_string)
+            .unwrap_or_else(|| DEFAULT_MCP_URL.to_string())
+    });
+
+    let transport = StreamableHttpClientTransport::from_uri(url.clone());
     let client = ()
         .serve(transport)
         .await
-        .with_context(|| format!("connect + MCP initialize at {}", cli.url))?;
+        .with_context(|| format!("connect + MCP initialize at {url}"))?;
 
     // `RunningService` derefs to `Peer<RoleClient>`, so the request methods are called
     // directly on `client`. Run the command, then close the session cleanly.
