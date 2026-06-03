@@ -1,0 +1,112 @@
+# Build the gt-mcp-cli binary and publish it as a GitHub Release.
+#
+# Two trigger paths keep the published binary current:
+#   - push tag `v*`   -> immutable, stable release named after the tag (e.g. v0.1.0)
+#   - push to main    -> rolling `latest` prerelease, rebuilt on every code change
+#                        (the "mantener actualizado" path — always tracks main)
+#   - workflow_dispatch for manual reruns.
+#
+# Each release carries per-target tarballs so `up to date` means "matches the
+# latest pushed code", not "whatever someone built locally".
+name: release
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+    # Skip rebuilds for doc-only / CI-only changes.
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install musl tools
+        if: endsWith(matrix.target, '-musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package tarball
+        id: pkg
+        run: |
+          BIN=gt-mcp-cli
+          DIST="${BIN}-${{ matrix.target }}"
+          mkdir -p "dist/${DIST}"
+          cp "target/${{ matrix.target }}/release/${BIN}" "dist/${DIST}/"
+          cp README.md "dist/${DIST}/" 2>/dev/null || true
+          tar -czf "dist/${DIST}.tar.gz" -C dist "${DIST}"
+          ( cd dist && sha256sum "${DIST}.tar.gz" > "${DIST}.tar.gz.sha256" )
+          echo "asset=dist/${DIST}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Tagged push -> stable release named after the tag.
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256
+          generate_release_notes: true
+
+      # Push to main -> rolling `latest` prerelease, always tracking main.
+      - name: Publish rolling latest
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: latest (main)
+          prerelease: true
+          body: >-
+            Rolling build of the latest `main` (`${{ github.sha }}`).
+            Auto-replaced on every push to main. For pinned builds use a `v*` tag.
+          files: |
+            dist/*.tar.gz
+            dist/*.sha256
