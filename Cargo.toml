@@ -1,24 +1,19 @@
 [package]
-name = "gt-mcp-cli"
-version = "0.1.1"
+name = "gt"
+version = "0.2.0"
 edition = "2021"
-description = "Command-line client for the gt-mcp server (Gas Town orchestrator MCP surface)."
+description = "Gas Town operator CLI — workspace context (prime) and deploy-stack management (compose)."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/gt-core-labs/gt-mcp-cli"
+repository = "https://github.com/gt-core-labs/gt"
 readme = "README.md"
-keywords = ["mcp", "cli", "gastown"]
+keywords = ["cli", "gastown", "docker-compose", "deploy"]
 categories = ["command-line-utilities"]
 
 [[bin]]
-name = "gt-mcp-cli"
+name = "gt"
 path = "src/main.rs"
 
 [dependencies]
-rmcp = { version = "1.7", default-features = false, features = [
-    "client",
-    "transport-streamable-http-client-reqwest",
-] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 clap = { version = "4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

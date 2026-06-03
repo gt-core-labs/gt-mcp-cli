@@ -1,125 +1,72 @@
-# gt-mcp-cli
+# gt
 
-Command-line client for the **gt-mcp** server — the MCP surface over the Gas Town
-orchestrator (apps/api, Rust). Talks the Model Context Protocol over the streamable-HTTP
-transport using the official `rmcp` SDK, so every call is a real MCP handshake.
+The **Gas Town operator CLI** — a small, offline command set for driving a Gas Town
+deployment from the shell. It reports the workspace context your shell carries and manages
+the deploy stack. It does **not** talk to the orchestrator over MCP: agents speak MCP
+natively, so `gt` stays a thin local tool (environment + git + docker).
 
 ## Build / install
 
 ```sh
-cargo build              # target/debug/gt-mcp-cli
-cargo install --path .   # installs gt-mcp-cli on PATH (cargo bin)
+cargo build              # target/debug/gt
+cargo install --path .   # installs gt on PATH (cargo bin)
 ```
 
 ## Usage
 
 ```sh
-gt-mcp-cli tools                 # list tools (name + description)
-gt-mcp-cli tools --full          # full input schemas (JSON)
-gt-mcp-cli resources             # list domain snapshot resource URIs
-gt-mcp-cli call <name> [--arg k=v ...] [--json '{...}']
-gt-mcp-cli read <uri>            # e.g. gt-mcp-cli read gt://agent/sessions
+gt prime                  # report the active workspace/role/rig (text)
+gt prime --json           # …as a JSON object
 
-gt-mcp-cli compose up            # clone gt-app deploy repo + docker compose up -d
-gt-mcp-cli compose down          # docker compose down — data volumes KEPT
-gt-mcp-cli compose destroy --yes # docker compose down --volumes — WIPES data
+gt workspace use <id>     # print `export GT_WORKSPACE=<id>` for eval
+eval "$(gt workspace use acme)"
+
+gt compose up             # clone gt-app deploy repo + docker compose up -d
+gt compose down           # docker compose down — data volumes KEPT
+gt compose destroy --yes  # docker compose down --volumes — WIPES data
 ```
 
-- **`compose`** is offline (no MCP session): it clones/updates the
-  [`gt-app`](https://github.com/gt-core-labs/gt-app) deploy repo into
-  `~/gt-app` (override with `--dir`/`GT_APP_DIR`) and drives
-  `docker compose` against it. `up` pulls the published
-  `codecsrayo/gt-core-mcp-server` image and starts the dolt+pg+mcp stack.
-  Override the repo with `--repo`/`GT_APP_REPO`.
-- **`down` keeps the data.** Tearing the stack down never drops the Dolt/PG/
-  event-log volumes — a later `compose up` resumes with the same data. Wiping
-  the data is a separate, explicit command: `compose destroy --yes` (refuses to
-  run without `--yes`).
-- Endpoint: `--url` or `GT_MCP_URL` (default `http://127.0.0.1:8765/mcp`).
-- `--arg k=v` values are parsed as JSON (`priority=0` → number, `weekly=true` → bool),
-  falling back to a string. `--json` supplies the whole argument object and wins over `--arg`.
-- Nonzero exit when the tool reports `isError` or the call fails.
+### `prime`
 
-The CLI needs an **HTTP** gt-mcp. Start one:
+Every Gas Town command is scoped to a workspace, so `prime` is the guard: it **requires**
+`GT_WORKSPACE` and aborts when unset, then reports the resolved workspace plus the role/rig
+the shell carries (`GT_ROLE` / `GT_RIG`).
 
-```sh
-GT_MCP_TRANSPORT=http GT_MCP_HTTP_BIND=127.0.0.1:8765 \
-  GT_MCP_SCOPE_CONFIG=~/.config/gt-mcp/scope.toml GT_MCP_ACTOR=dev \
-  /home/nixos/gastown/apps/api/target/debug/gt-mcp
-```
-
-## Letting Claude Code agents use gt-mcp (native MCP)
-
-Claude Code speaks MCP natively: register gt-mcp once and its tools appear as native tools.
-
-### Dev / single host (stdio — isolated in-memory state per session)
-
-Already wired in `~/.claude.json` for this host:
-
-```json
-"mcpServers": {
-  "gt-mcp": {
-    "type": "stdio",
-    "command": "/home/nixos/gastown/apps/api/target/debug/gt-mcp",
-    "env": {
-      "GT_MCP_SCOPE_CONFIG": "/home/nixos/.config/gt-mcp/scope.toml",
-      "GT_MCP_ACTOR": "dev",
-      "GT_EVENT_LOG": "/tmp/gt.events.jsonl"
-    }
-  }
-}
-```
-
-Restart Claude Code to load it. Each session spawns its own gt-mcp → **state is not shared**
-across agents. Good for trying the tools; not for a shared orchestrator.
-
-### Shared across agents (HTTP — one server, shared state)
-
-Run **one** gt-mcp HTTP server, point every agent at it:
-
-```json
-"mcpServers": {
-  "gt-mcp": { "type": "http", "url": "http://<host>:8765/mcp" }
-}
-```
-
-For Dolt-backed, shared state reachable by the container agents, gt-mcp must run **inside
-`gastown-sandbox`** (the host can't reach Dolt `:3307`; the binary is built on the host only
-today). Rollout steps when ready:
-
-1. Build gt-mcp inside the container (Rust toolchain + apps/api source) or copy a
-   compatible binary in.
-2. Run it with `GT_MCP_TRANSPORT=http`, `GT_DOLT_URL=...`, a per-role scope config, and
-   optionally `GT_PG_AUDIT_URL=...`.
-3. Register the HTTP endpoint in each agent's Claude Code config.
-4. Document it in the town `CLAUDE.md` / `gt prime` so agents know it exists.
-
-## Scope (authorization)
-
-gt-mcp is **deny-by-default**. `GT_MCP_SCOPE_CONFIG` points at a per-actor file; `GT_MCP_ACTOR`
-selects the connection's actor. Example (`~/.config/gt-mcp/scope.toml`):
+Workspace resolution order: `GT_WORKSPACE` (env) > `default_workspace`
+(`~/.config/gastown/config.toml`) > the legacy `GT_WORKSPACE_DEFAULT_OPT_IN` grace fallback to
+`default` > abort.
 
 ```toml
-[actors.dev]
-allow = ["*"]
-
-[actors.scheduler-bot]
-allow = ["scheduling.*", "patrol.tick.execute"]
-
-[actors.watcher]
-allow = ["agent.*"]
-validate_only = true
+# ~/.config/gastown/config.toml
+default_workspace = "acme"
 ```
 
-Grant the narrowest scope a role needs — `*` is full orchestrator control (spawn sessions,
-create beads, rotate quota).
+### `workspace use`
 
-## Tools (6 domains, validate/execute pairs)
+A child process cannot mutate its parent shell, so `use` is offline: it prints an
+`export GT_WORKSPACE=<id>` line for the shell to `eval`. The hint goes to stderr so
+`eval "$(gt workspace use <id>)"` stays clean.
 
-`agent.{add,remove,transition}` · `scheduling.{enqueue,mark_dispatched,create_bead}` ·
-`patrol.{register,heartbeat,tick,close}` · `merge.{submit,start,complete,fail}` ·
-`orch.{launch_convoy,complete_member,fail_member}` ·
-`quota.{sample,probe,rotate,register}`
+### `compose`
 
-Resources: `gt://agent/sessions`, `gt://scheduling/queue`, `gt://patrol/leases`,
-`gt://merge/slots`, `gt://orch/convoys`, `gt://quota/accounts`.
+Clones/updates the [`gt-app`](https://github.com/gt-core-labs/gt-app) deploy repo into
+`~/gt-app` (override with `--dir`/`GT_APP_DIR`) and drives `docker compose` against it. `up`
+pulls the published `codecsrayo/gt-core-mcp-server` image and starts the dolt+pg+mcp stack
+(override the repo with `--repo`/`GT_APP_REPO`).
+
+- **`down` keeps the data.** Tearing the stack down never drops the Dolt/PG/event-log
+  volumes — a later `compose up` resumes with the same data.
+- **`destroy --yes` wipes the data.** Dropping the volumes is a separate, explicit command
+  that refuses to run without `--yes`.
+
+## Letting Claude Code agents use the orchestrator (native MCP)
+
+Claude Code speaks MCP natively — register the gt-mcp server once and its tools appear as
+native tools. `gt` itself is not involved in that path; it only stands up the stack
+(`gt compose up`) the agents then connect to.
+
+```json
+"mcpServers": {
+  "gt-mcp": { "type": "http", "url": "http://127.0.0.1:8765/mcp" }
+}
+```

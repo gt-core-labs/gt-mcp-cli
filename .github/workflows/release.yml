@@ -1,4 +1,4 @@
-# Build the gt-mcp-cli binary and publish it as a GitHub Release.
+# Build the gt binary and publish it as a GitHub Release.
 #
 # Two trigger paths keep the published binary current:
 #   - push tag `v*`   -> immutable, stable release named after the tag (e.g. v0.1.0)
@@ -59,7 +59,7 @@ jobs:
       - name: Package tarball
         id: pkg
         run: |
-          BIN=gt-mcp-cli
+          BIN=gt
           DIST="${BIN}-${{ matrix.target }}"
           mkdir -p "dist/${DIST}"
           cp "target/${{ matrix.target }}/release/${BIN}" "dist/${DIST}/"

@@ -1,6 +1,6 @@
-//! `gt-mcp-cli compose` — manage the gt-app deploy stack.
+//! `gt compose` — manage the gt-app deploy stack.
 //!
-//! Offline (no MCP session): clones/updates the `gt-app` deploy repo (compose +
+//! Clones/updates the `gt-app` deploy repo (compose +
 //! `.env.example` + `mcp-scope.toml`) and drives `docker compose` against it.
 //! `up` brings the stack up (pull image from DockerHub, then `up -d`); `down`
 //! tears it down, optionally dropping the data volumes.
