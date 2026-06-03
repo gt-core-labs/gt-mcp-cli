@@ -17,7 +17,7 @@ const DEFAULT_REPO: &str = "https://github.com/gt-core-labs/gt-app.git";
 pub enum ComposeAction {
     /// Clone/update the gt-app deploy repo and bring the stack up (`docker compose up -d`).
     Up {
-        /// Directory to clone the deploy repo into (default: `~/.local/share/gt-app`).
+        /// Directory to clone the deploy repo into (default: `~/gt-app`).
         #[arg(long, env = "GT_APP_DIR")]
         dir: Option<PathBuf>,
         /// Deploy repo URL.
@@ -34,7 +34,7 @@ pub enum ComposeAction {
     /// KEPT — `compose up` later resumes with the same Dolt/PG/event-log data. To wipe
     /// the data too, use the separate `compose destroy` command.
     Down {
-        /// Directory the deploy repo was cloned into (default: `~/.local/share/gt-app`).
+        /// Directory the deploy repo was cloned into (default: `~/gt-app`).
         #[arg(long, env = "GT_APP_DIR")]
         dir: Option<PathBuf>,
     },
@@ -42,7 +42,7 @@ pub enum ComposeAction {
     /// permanently deletes the Dolt/PG/event-log data — separate from `down` on purpose
     /// so a routine teardown can never drop data. Requires `--yes` to proceed.
     Destroy {
-        /// Directory the deploy repo was cloned into (default: `~/.local/share/gt-app`).
+        /// Directory the deploy repo was cloned into (default: `~/gt-app`).
         #[arg(long, env = "GT_APP_DIR")]
         dir: Option<PathBuf>,
         /// Confirm the irreversible data wipe. Without it the command aborts.
@@ -115,13 +115,14 @@ fn require_compose_file(dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-/// Default deploy dir: `$GT_APP_DIR` (handled by clap) else `~/.local/share/gt-app`.
+/// Default deploy dir: an explicit `--dir`/`$GT_APP_DIR` wins; else `~/gt-app`
+/// (user home root — a path docker compose can always traverse).
 fn resolve_dir(dir: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(d) = dir {
         return Ok(d);
     }
     let home = std::env::var_os("HOME").ok_or_else(|| anyhow!("HOME not set"))?;
-    Ok(PathBuf::from(home).join(".local/share/gt-app"))
+    Ok(PathBuf::from(home).join("gt-app"))
 }
 
 /// Clone the repo if absent, else fast-forward the existing checkout.

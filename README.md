@@ -27,7 +27,7 @@ gt-mcp-cli compose destroy --yes # docker compose down --volumes — WIPES data
 
 - **`compose`** is offline (no MCP session): it clones/updates the
   [`gt-app`](https://github.com/gt-core-labs/gt-app) deploy repo into
-  `~/.local/share/gt-app` (override with `--dir`/`GT_APP_DIR`) and drives
+  `~/gt-app` (override with `--dir`/`GT_APP_DIR`) and drives
   `docker compose` against it. `up` pulls the published
   `codecsrayo/gt-core-mcp-server` image and starts the dolt+pg+mcp stack.
   Override the repo with `--repo`/`GT_APP_REPO`.
