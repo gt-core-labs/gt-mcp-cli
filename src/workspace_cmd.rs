@@ -39,6 +39,11 @@ pub enum WorkspaceAction {
         /// Workspace id / slug.
         id: String,
     },
+    /// Resume a suspended workspace back to active.
+    Resume {
+        /// Workspace id / slug.
+        id: String,
+    },
     /// Archive a workspace (terminal).
     Archive {
         /// Workspace id / slug.
@@ -76,6 +81,10 @@ impl WorkspaceAction {
             WorkspaceAction::Suspend { id } => {
                 args.insert("id".into(), json!(id));
                 Some(("workspace.suspend", args))
+            }
+            WorkspaceAction::Resume { id } => {
+                args.insert("id".into(), json!(id));
+                Some(("workspace.resume", args))
             }
             WorkspaceAction::Archive { id } => {
                 args.insert("id".into(), json!(id));
@@ -130,15 +139,19 @@ mod tests {
     }
 
     #[test]
-    fn suspend_and_archive_map_to_their_tools() {
+    fn suspend_resume_and_archive_map_to_their_tools() {
         let (t1, a1) = WorkspaceAction::Suspend { id: "acme".into() }.online_call().unwrap();
         assert_eq!(t1, "workspace.suspend");
         assert_eq!(a1["id"], json!("acme"));
+        let (tr, ar) = WorkspaceAction::Resume { id: "acme".into() }.online_call().unwrap();
+        assert_eq!(tr, "workspace.resume");
+        assert_eq!(ar["id"], json!("acme"));
         let (t2, a2) = WorkspaceAction::Archive { id: "acme".into() }.online_call().unwrap();
         assert_eq!(t2, "workspace.archive");
         assert_eq!(a2["id"], json!("acme"));
-        // both are online (not the offline `use`)
+        // all online (not the offline `use`)
         assert!(!WorkspaceAction::Suspend { id: "acme".into() }.run_offline());
+        assert!(!WorkspaceAction::Resume { id: "acme".into() }.run_offline());
         assert!(!WorkspaceAction::Archive { id: "acme".into() }.run_offline());
     }
 }
