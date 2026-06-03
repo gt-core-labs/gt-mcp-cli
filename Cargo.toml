@@ -1,6 +1,6 @@
 [package]
 name = "gt-mcp-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Command-line client for the gt-mcp server (Gas Town orchestrator MCP surface)."
 license = "MIT OR Apache-2.0"
