@@ -11,6 +11,8 @@ use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::ServiceExt;
 use serde_json::{Map, Value};
 
+mod prime;
+
 #[derive(Parser)]
 #[command(name = "gt-mcp-cli", version, about = "CLI client for the gt-mcp server")]
 struct Cli {
@@ -49,11 +51,25 @@ enum Command {
     },
     /// Read a resource by URI, e.g. `gt://agent/sessions`.
     Read { uri: String },
+    /// Report the active workspace/role/rig. Requires `GT_WORKSPACE` (aborts when unset unless
+    /// `GT_WORKSPACE_DEFAULT_OPT_IN` opts into the legacy `default` fallback). Offline: reads the
+    /// environment only, never contacts the server.
+    Prime {
+        /// Emit the context as a JSON object instead of the text report.
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    // `prime` is offline — it inspects the environment and never opens an MCP session, so it
+    // short-circuits before the transport connect (which would otherwise require a live server).
+    if let Command::Prime { json } = cli.cmd {
+        std::process::exit(prime::run(json));
+    }
 
     let transport = StreamableHttpClientTransport::from_uri(cli.url.clone());
     let client = ()
@@ -100,6 +116,8 @@ async fn main() -> Result<()> {
                     .context("read resource")?;
                 println!("{}", serde_json::to_string_pretty(&result)?);
             }
+            // Handled offline above, before the transport connect.
+            Command::Prime { .. } => unreachable!("prime short-circuits before connect"),
         }
         Ok(())
     }
