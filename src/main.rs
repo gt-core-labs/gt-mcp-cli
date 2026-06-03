@@ -12,6 +12,9 @@ use rmcp::ServiceExt;
 use serde_json::{Map, Value};
 
 mod prime;
+mod workspace_cmd;
+
+use workspace_cmd::WorkspaceAction;
 
 #[derive(Parser)]
 #[command(name = "gt-mcp-cli", version, about = "CLI client for the gt-mcp server")]
@@ -59,6 +62,12 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
+    /// Manage workspaces: `list` / `create` / `info` (over MCP) and `use` (prints an
+    /// `export GT_WORKSPACE=<id>` line to eval).
+    Workspace {
+        #[command(subcommand)]
+        action: WorkspaceAction,
+    },
 }
 
 #[tokio::main]
@@ -69,6 +78,14 @@ async fn main() -> Result<()> {
     // short-circuits before the transport connect (which would otherwise require a live server).
     if let Command::Prime { json } = cli.cmd {
         std::process::exit(prime::run(json));
+    }
+
+    // `workspace use` is offline too — it only prints an `export` line for the shell to eval,
+    // so it must not require a live server.
+    if let Command::Workspace { action } = &cli.cmd {
+        if action.run_offline() {
+            return Ok(());
+        }
     }
 
     let transport = StreamableHttpClientTransport::from_uri(cli.url.clone());
@@ -115,6 +132,18 @@ async fn main() -> Result<()> {
                     .await
                     .context("read resource")?;
                 println!("{}", serde_json::to_string_pretty(&result)?);
+            }
+            Command::Workspace { action } => {
+                let (name, args) = action
+                    .online_call()
+                    .expect("workspace use is handled offline before connect");
+                let mut params = CallToolRequestParams::new(name);
+                if !args.is_empty() {
+                    params = params.with_arguments(args);
+                }
+                let result = client.call_tool(params).await.context("call workspace tool")?;
+                println!("{}", serde_json::to_string_pretty(&result)?);
+                exit_error = result.is_error == Some(true);
             }
             // Handled offline above, before the transport connect.
             Command::Prime { .. } => unreachable!("prime short-circuits before connect"),
