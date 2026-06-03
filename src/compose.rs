@@ -30,14 +30,24 @@ pub enum ComposeAction {
         #[arg(long)]
         no_pull: bool,
     },
-    /// Tear the stack down (`docker compose down`).
+    /// Stop + remove the stack containers (`docker compose down`). Data volumes are
+    /// KEPT — `compose up` later resumes with the same Dolt/PG/event-log data. To wipe
+    /// the data too, use the separate `compose destroy` command.
     Down {
         /// Directory the deploy repo was cloned into (default: `~/.local/share/gt-app`).
         #[arg(long, env = "GT_APP_DIR")]
         dir: Option<PathBuf>,
-        /// Also remove the named volumes — DESTROYS the Dolt/PG/event-log data.
+    },
+    /// DESTROY the stack AND its data volumes (`docker compose down --volumes`). This
+    /// permanently deletes the Dolt/PG/event-log data — separate from `down` on purpose
+    /// so a routine teardown can never drop data. Requires `--yes` to proceed.
+    Destroy {
+        /// Directory the deploy repo was cloned into (default: `~/.local/share/gt-app`).
+        #[arg(long, env = "GT_APP_DIR")]
+        dir: Option<PathBuf>,
+        /// Confirm the irreversible data wipe. Without it the command aborts.
         #[arg(long)]
-        volumes: bool,
+        yes: bool,
     },
 }
 
@@ -50,7 +60,8 @@ pub fn run(action: &ComposeAction) -> i32 {
             branch,
             no_pull,
         } => up(dir.clone(), repo, branch, *no_pull),
-        ComposeAction::Down { dir, volumes } => down(dir.clone(), *volumes),
+        ComposeAction::Down { dir } => down(dir.clone()),
+        ComposeAction::Destroy { dir, yes } => destroy(dir.clone(), *yes),
     };
     match result {
         Ok(()) => 0,
@@ -75,17 +86,32 @@ fn up(dir: Option<PathBuf>, repo: &str, branch: &str, no_pull: bool) -> Result<(
     Ok(())
 }
 
-fn down(dir: Option<PathBuf>, volumes: bool) -> Result<()> {
+fn down(dir: Option<PathBuf>) -> Result<()> {
     let dir = resolve_dir(dir)?;
+    require_compose_file(&dir)?;
+    eprintln!("==> docker compose down (data volumes kept)");
+    compose(&dir, &["down"])?;
+    Ok(())
+}
+
+fn destroy(dir: Option<PathBuf>, yes: bool) -> Result<()> {
+    let dir = resolve_dir(dir)?;
+    require_compose_file(&dir)?;
+    if !yes {
+        bail!(
+            "refusing to destroy data volumes without --yes \
+             (this permanently deletes the Dolt/PG/event-log data)"
+        );
+    }
+    eprintln!("==> docker compose down --volumes (DESTROYING data volumes)");
+    compose(&dir, &["down", "--volumes"])?;
+    Ok(())
+}
+
+fn require_compose_file(dir: &PathBuf) -> Result<()> {
     if !dir.join("docker-compose.yml").is_file() {
         bail!("no docker-compose.yml in {} — run `compose up` first", dir.display());
     }
-    let mut args = vec!["down"];
-    if volumes {
-        args.push("--volumes");
-    }
-    eprintln!("==> docker compose {}", args.join(" "));
-    compose(&dir, &args)?;
     Ok(())
 }
 
