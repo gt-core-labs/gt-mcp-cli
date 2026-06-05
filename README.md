@@ -1,6 +1,6 @@
 # gt
 
-The **Gas Town operator CLI**. Two halves:
+The **gt-core operator CLI**. Two halves:
 
 - **Offline** — `prime`/`workspace`/`compose`: report the workspace context your shell
   carries and manage the deploy stack (environment + git + docker, no network).
@@ -43,16 +43,16 @@ gt update                 # self-update to the latest release (--check to peek)
 
 ### `prime`
 
-Every Gas Town command is scoped to a workspace, so `prime` is the guard: it **requires**
+Every gt command is scoped to a workspace, so `prime` is the guard: it **requires**
 `GT_WORKSPACE` and aborts when unset, then reports the resolved workspace plus the role/rig
 the shell carries (`GT_ROLE` / `GT_RIG`).
 
 Workspace resolution order: `GT_WORKSPACE` (env) > `default_workspace`
-(`~/.config/gastown/config.toml`) > the legacy `GT_WORKSPACE_DEFAULT_OPT_IN` grace fallback to
+(`~/.config/gt/config.toml`) > the legacy `GT_WORKSPACE_DEFAULT_OPT_IN` grace fallback to
 `default` > abort.
 
 ```toml
-# ~/.config/gastown/config.toml
+# ~/.config/gt/config.toml
 default_workspace = "acme"
 ```
 

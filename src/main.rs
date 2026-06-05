@@ -1,4 +1,4 @@
-//! `gt` — the Gas Town operator CLI.
+//! `gt` — the gt-core operator CLI.
 //!
 //! - `gt prime` — report the active workspace/role/rig the shell carries.
 //! - `gt workspace use <id>` — print an `export GT_WORKSPACE=<id>` line to eval.
@@ -29,7 +29,7 @@ use project_config::ConfigStore;
 use workspace_cmd::WorkspaceAction;
 
 #[derive(Parser)]
-#[command(name = "gt", version, about = "Gas Town operator CLI")]
+#[command(name = "gt", version, about = "gt-core operator CLI")]
 struct Cli {
     #[command(subcommand)]
     cmd: Command,
@@ -113,6 +113,12 @@ enum ConfigAction {
 
 fn main() {
     let cli = Cli::parse();
+
+    // Passive, throttled (~1/day) "newer version available" notice on stderr. Skipped for
+    // `mcp` (stdout is its JSON-RPC channel; it is long-lived) and `update` (checks already).
+    if !matches!(cli.cmd, Command::Mcp | Command::Update { .. }) {
+        update::maybe_notify();
+    }
 
     let code = match cli.cmd {
         // Offline commands return their own exit code.

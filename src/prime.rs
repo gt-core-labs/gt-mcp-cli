@@ -20,7 +20,7 @@
 //!
 //! ## Scope (deferred)
 //!
-//! `role`/`rig` are read straight from `GT_ROLE`/`GT_RIG`. gastown's `gt prime` additionally
+//! `role`/`rig` are read straight from `GT_ROLE`/`GT_RIG`. an upstream `gt prime` additionally
 //! infers role from the cwd/town-root layout (`find_town_root`, `detect_role_from_cwd`); that
 //! machinery is **not** ported here — it rides in with the wider `gt` CLI unification
 //! (hq-mod-flags.5). Until then `prime` reports the env-declared identity only.
@@ -128,7 +128,7 @@ fn abort_missing() {
     eprintln!("Set the tenant this shell speaks for:");
     eprintln!("    export GT_WORKSPACE=<your-workspace>");
     eprintln!();
-    eprintln!("Or set a persistent default in ~/.config/gastown/config.toml:");
+    eprintln!("Or set a persistent default in ~/.config/gt/config.toml:");
     eprintln!("    default_workspace = \"<your-workspace>\"");
     eprintln!();
     eprintln!("Legacy scripts may opt into the `default` workspace instead:");

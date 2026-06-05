@@ -1,4 +1,4 @@
-//! `~/.config/gastown/config.toml` — persistent CLI defaults (hq-mt-cli.3).
+//! `~/.config/gt/config.toml` — persistent CLI defaults (hq-mt-cli.3).
 //!
 //! One setting the shell would otherwise have to pass on every invocation:
 //!
@@ -21,7 +21,7 @@ pub struct Config {
 }
 
 impl Config {
-    /// Load `$XDG_CONFIG_HOME/gastown/config.toml` (or `~/.config/gastown/config.toml`).
+    /// Load `$XDG_CONFIG_HOME/gt/config.toml` (or `~/.config/gt/config.toml`).
     ///
     /// Never fails: a missing file or a parse error yields [`Config::default`] so the caller can
     /// treat config as a pure set of optional overrides. A parse error is logged to stderr.
@@ -44,14 +44,14 @@ impl Config {
     }
 }
 
-/// Resolve the config-file path: `$XDG_CONFIG_HOME/gastown/config.toml`, falling back to
-/// `$HOME/.config/gastown/config.toml`. Returns `None` only when neither env var is set.
+/// Resolve the config-file path: `$XDG_CONFIG_HOME/gt/config.toml`, falling back to
+/// `$HOME/.config/gt/config.toml`. Returns `None` only when neither env var is set.
 fn config_path() -> Option<std::path::PathBuf> {
     if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME").filter(|s| !s.is_empty()) {
-        return Some(std::path::PathBuf::from(xdg).join("gastown/config.toml"));
+        return Some(std::path::PathBuf::from(xdg).join("gt/config.toml"));
     }
     let home = std::env::var_os("HOME").filter(|s| !s.is_empty())?;
-    Some(std::path::PathBuf::from(home).join(".config/gastown/config.toml"))
+    Some(std::path::PathBuf::from(home).join(".config/gt/config.toml"))
 }
 
 #[cfg(test)]

@@ -1,12 +1,12 @@
 [package]
 name = "gt"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
-description = "Gas Town operator CLI — workspace context (prime), deploy-stack management (compose), and a per-project MCP connection (init/config/mcp)."
+description = "gt-core operator CLI — workspace context (prime), deploy-stack management (compose), and a per-project MCP connection (init/config/mcp)."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gt-core-labs/gt"
 readme = "README.md"
-keywords = ["cli", "gastown", "mcp", "docker-compose"]
+keywords = ["cli", "gt-core", "mcp", "docker-compose"]
 categories = ["command-line-utilities"]
 
 [[bin]]
