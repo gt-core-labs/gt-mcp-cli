@@ -20,6 +20,8 @@ mod config_cmd;
 mod init;
 mod prime;
 mod project_config;
+mod register;
+mod tools;
 mod update;
 mod workspace_cmd;
 
@@ -65,6 +67,20 @@ enum Command {
     },
     /// Run the stdio MCP proxy against the active config (for `.mcp.json`).
     Mcp,
+    /// Serve gt's own subcommands as MCP tools over stdio (for `.mcp.json`).
+    Tools,
+    /// Register gt (`gt` proxy + `gt-tools`) as MCP servers in a client config.
+    Register {
+        /// Write to ~/.claude.json instead of the project ./.mcp.json.
+        #[arg(long)]
+        global: bool,
+    },
+    /// Remove gt's MCP server entries from a client config.
+    Unregister {
+        /// Operate on ~/.claude.json instead of the project ./.mcp.json.
+        #[arg(long)]
+        global: bool,
+    },
     /// Update the installed `gt` binary to the latest GitHub release.
     Update {
         /// Only report whether a newer version exists; do not download.
@@ -114,9 +130,13 @@ enum ConfigAction {
 fn main() {
     let cli = Cli::parse();
 
-    // Passive, throttled (~1/day) "newer version available" notice on stderr. Skipped for
-    // `mcp` (stdout is its JSON-RPC channel; it is long-lived) and `update` (checks already).
-    if !matches!(cli.cmd, Command::Mcp | Command::Update { .. }) {
+    // Passive, throttled (~1/day) "newer version available" notice on stderr. Skipped for the
+    // stdio MCP servers (`mcp`/`tools` — stdout is their JSON-RPC channel, and they are
+    // long-lived) and `update` (which checks already).
+    if !matches!(
+        cli.cmd,
+        Command::Mcp | Command::Tools | Command::Update { .. }
+    ) {
         update::maybe_notify();
     }
 
@@ -125,10 +145,23 @@ fn main() {
         Command::Prime { json } => prime::run(json),
         Command::Workspace { action } => workspace_cmd::run(&action),
         Command::Compose { action } => compose::run(&action),
-        // Networked commands are async; run them on a runtime and map Result → exit code.
+        Command::Register { global } => to_code(register::run(global, false)),
+        Command::Unregister { global } => to_code(register::run(global, true)),
+        // Networked / async commands run on a runtime; map Result → exit code.
         cmd => run_async(cmd),
     };
     std::process::exit(code);
+}
+
+/// Map a `Result<()>` to a process exit code, printing the error chain on failure.
+fn to_code(result: Result<()>) -> i32 {
+    match result {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            1
+        }
+    }
 }
 
 /// Drive the async subcommands (init/config/mcp/update) and turn the `Result` into a process
@@ -170,16 +203,11 @@ fn run_async(cmd: Command) -> i32 {
                 })?;
                 gt_mcp::proxy::run(&cfg.server_url, &cfg.access_token, &cfg.workspace).await
             }
+            Command::Tools => tools::run().await,
             Command::Update { check } => update::run(check).await,
             // The offline arms are handled in `main`.
             _ => unreachable!("offline command routed to run_async"),
         }
     });
-    match result {
-        Ok(()) => 0,
-        Err(e) => {
-            eprintln!("error: {e:#}");
-            1
-        }
-    }
+    to_code(result)
 }

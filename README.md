@@ -38,6 +38,9 @@ gt init                   # first-run wizard: log in, pick a workspace + rig, sa
 gt config list            # per-project named configs under .gt-config/ (active marked *)
 gt config use <name>      # switch the active config
 gt mcp                    # stdio MCP proxy against the active config (for .mcp.json)
+gt tools                  # serve gt's own subcommands as MCP tools (for .mcp.json)
+gt register               # write ./.mcp.json registering `gt` + `gt-tools` (--global → ~/.claude.json)
+gt unregister             # remove those MCP entries
 gt update                 # self-update to the latest release (--check to peek)
 ```
 
@@ -102,3 +105,17 @@ Two ways to wire the orchestrator's MCP tools into an agent:
   ```json
   "mcpServers": { "gt-mcp": { "type": "http", "url": "http://127.0.0.1:8765/mcp" } }
   ```
+
+### Register gt as MCP tools
+
+`gt register` installs two stdio MCP servers into the client config so a model discovers
+them automatically — no hand-editing `.mcp.json`:
+
+- `gt` → `gt mcp` — the orchestrator's tools (authenticated, per the active `.gt-config`).
+- `gt-tools` → `gt tools` — gt's OWN subcommands as tools (`gt_prime`, `gt_config_*`,
+  `gt_workspace_use`, `gt_compose_*`, `gt_update_check`, `gt_help`). Each shells out to this
+  binary, so behaviour matches the CLI; `tools/list` (with descriptions + server
+  instructions) tells the model what exists.
+
+`gt register` writes the project `./.mcp.json`; `gt register --global` writes
+`~/.claude.json`. `gt unregister` removes them. Restart the MCP client to pick up changes.
