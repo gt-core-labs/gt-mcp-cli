@@ -1,8 +1,8 @@
 [package]
 name = "gt"
-version = "0.4.3"
+version = "0.5.0"
 edition = "2021"
-description = "gt-core operator CLI — workspace context (prime), deploy-stack management (compose), a per-project MCP connection (init/config/mcp), and self-registration as MCP tools (tools/register)."
+description = "gt-core client CLI — workspace context (prime/workspace), a per-project MCP connection (init/config/mcp), and self-registration as MCP tools (tools/register)."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gt-core-labs/gt"
 readme = "README.md"

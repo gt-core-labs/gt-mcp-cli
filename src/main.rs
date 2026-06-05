@@ -1,20 +1,23 @@
-//! `gt` — the gt-core operator CLI.
+//! `gt` — the gt-core client CLI.
 //!
-//! - `gt prime` — report the active workspace/role/rig the shell carries.
-//! - `gt workspace use <id>` — print an `export GT_WORKSPACE=<id>` line to eval.
-//! - `gt compose up|down|destroy` — clone the `gt-app` deploy repo and drive `docker compose`.
-//! - `gt init` — first-run wizard: log in, pick a workspace + rig, save a per-project config.
+//! A thin CLIENT for a gt-core server — it never manages the server's deploy.
+//!
+//! Commands (alphabetical):
 //! - `gt config list|use|show` — manage the per-project `.gt-config/` connection configs.
+//! - `gt init` — first-run wizard: log in, pick a workspace + rig, save a per-project config.
 //! - `gt mcp` — stdio MCP entrypoint for `.mcp.json`; proxies to the server's `/mcp`.
+//! - `gt prime` — report the active workspace/role/rig the shell carries.
+//! - `gt register` / `gt unregister` — (de)register those MCP servers in a client config.
+//! - `gt tools` — serve gt's own subcommands as MCP tools.
 //! - `gt update` — self-update the installed binary to the latest release.
+//! - `gt workspace use <id>` — print an `export GT_WORKSPACE=<id>` line to eval.
 //!
-//! `prime`/`workspace`/`compose` are offline (env + git + docker). `init`/`config`/`mcp`
-//! talk to a gt-core server through the `gt-mcp` crate.
+//! `prime`/`workspace` are offline (env only). `init`/`config`/`mcp` talk to a gt-core server
+//! through the `gt-mcp` crate.
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-mod compose;
 mod config;
 mod config_cmd;
 mod init;
@@ -26,7 +29,6 @@ mod tools;
 mod update;
 mod workspace_cmd;
 
-use compose::ComposeAction;
 use init::InitArgs;
 use project_config::ConfigStore;
 use workspace_cmd::WorkspaceAction;
@@ -38,44 +40,33 @@ struct Cli {
     cmd: Command,
 }
 
+// Variants are kept in alphabetical order so `gt --help` lists them alphabetically.
 #[derive(Subcommand)]
 enum Command {
-    /// Report the active workspace/role/rig. Requires `GT_WORKSPACE` (aborts when unset unless
-    /// `GT_WORKSPACE_DEFAULT_OPT_IN` opts into the legacy `default` fallback). Reads the
-    /// environment only.
-    Prime {
-        /// Emit the context as a JSON object instead of the text report.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Select a workspace for this shell: `use` prints an `export GT_WORKSPACE=<id>` line to eval.
-    Workspace {
-        #[command(subcommand)]
-        action: WorkspaceAction,
-    },
-    /// Manage the gt-app deploy stack: `up` clones the deploy repo + `docker compose up -d`,
-    /// `down` tears it down. Drives git + docker.
-    Compose {
-        #[command(subcommand)]
-        action: ComposeAction,
-    },
-    /// First-run wizard: log in, pick a workspace + rig, save a per-project config.
-    Init(InitCmd),
     /// Manage the per-project named configs under `.gt-config/`.
     Config {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// First-run wizard: log in, pick a workspace + rig, save a per-project config.
+    Init(InitCmd),
     /// Run the stdio MCP proxy against the active config (for `.mcp.json`).
     Mcp,
-    /// Serve gt's own subcommands as MCP tools over stdio (for `.mcp.json`).
-    Tools,
+    /// Report the active workspace/role/rig. Resolves GT_WORKSPACE > project .gt-config >
+    /// user-global default > grace opt-in > abort. Reads the environment + config only.
+    Prime {
+        /// Emit the context as a JSON object instead of the text report.
+        #[arg(long)]
+        json: bool,
+    },
     /// Register gt (`gt` proxy + `gt-tools`) as MCP servers in a client config.
     Register {
         /// Write to ~/.claude.json instead of the project ./.mcp.json.
         #[arg(long)]
         global: bool,
     },
+    /// Serve gt's own subcommands as MCP tools over stdio (for `.mcp.json`).
+    Tools,
     /// Remove gt's MCP server entries from a client config.
     Unregister {
         /// Operate on ~/.claude.json instead of the project ./.mcp.json.
@@ -87,6 +78,11 @@ enum Command {
         /// Only report whether a newer version exists; do not download.
         #[arg(long)]
         check: bool,
+    },
+    /// Select a workspace for this shell: `use` prints an `export GT_WORKSPACE=<id>` line to eval.
+    Workspace {
+        #[command(subcommand)]
+        action: WorkspaceAction,
     },
 }
 
@@ -148,7 +144,6 @@ fn main() {
         // Offline commands return their own exit code.
         Command::Prime { json } => prime::run(json),
         Command::Workspace { action } => workspace_cmd::run(&action),
-        Command::Compose { action } => compose::run(&action),
         Command::Register { global } => to_code(register::run(global, false)),
         Command::Unregister { global } => to_code(register::run(global, true)),
         // Networked / async commands run on a runtime; map Result → exit code.

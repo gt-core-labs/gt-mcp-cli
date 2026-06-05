@@ -1,9 +1,10 @@
 # gt
 
-The **gt-core operator CLI**. Two halves:
+The **gt-core client CLI** — a thin client for a gt-core server. It never manages the
+server's deploy. Two halves:
 
-- **Offline** — `prime`/`workspace`/`compose`: report the workspace context your shell
-  carries and manage the deploy stack (environment + git + docker, no network).
+- **Offline** — `prime`/`workspace`: report and select the workspace context your shell
+  carries (environment only, no network).
 - **MCP connection** — `init`/`config`/`mcp`: connect a project to a gt-core server, then
   expose its tools to an agent as a stdio MCP proxy. The wire logic lives in the
   [`gt-mcp`](https://crates.io/crates/gt-mcp) crate, kept isolated from this CLI.
@@ -29,10 +30,6 @@ gt prime --json           # …as a JSON object
 
 gt workspace use <id>     # print `export GT_WORKSPACE=<id>` for eval
 eval "$(gt workspace use acme)"
-
-gt compose up             # clone gt-app deploy repo + docker compose up -d
-gt compose down           # docker compose down — data volumes KEPT
-gt compose destroy --yes  # docker compose down --volumes — WIPES data
 
 gt init                   # first-run wizard: log in, pick a workspace + rig, save config
 gt config list            # per-project named configs under .gt-config/ (active marked *)
@@ -64,18 +61,6 @@ default_workspace = "acme"
 A child process cannot mutate its parent shell, so `use` is offline: it prints an
 `export GT_WORKSPACE=<id>` line for the shell to `eval`. The hint goes to stderr so
 `eval "$(gt workspace use <id>)"` stays clean.
-
-### `compose`
-
-Clones/updates the [`gt-app`](https://github.com/gt-core-labs/gt-app) deploy repo into
-`~/gt-app` (override with `--dir`/`GT_APP_DIR`) and drives `docker compose` against it. `up`
-pulls the published `codecsrayo/gt-core-mcp-server` image and starts the dolt+pg+mcp stack
-(override the repo with `--repo`/`GT_APP_REPO`).
-
-- **`down` keeps the data.** Tearing the stack down never drops the Dolt/PG/event-log
-  volumes — a later `compose up` resumes with the same data.
-- **`destroy --yes` wipes the data.** Dropping the volumes is a separate, explicit command
-  that refuses to run without `--yes`.
 
 ### `init` / `config`
 
@@ -115,7 +100,7 @@ them automatically — no hand-editing `.mcp.json`:
 
 - `gt` → `gt mcp` — the orchestrator's tools (authenticated, per the active `.gt-config`).
 - `gt-tools` → `gt tools` — gt's OWN subcommands as tools (`gt_prime`, `gt_config_*`,
-  `gt_workspace_use`, `gt_compose_*`, `gt_update_check`, `gt_help`). Each shells out to this
+  `gt_workspace_use`, `gt_update_check`, `gt_help`). Each shells out to this
   binary, so behaviour matches the CLI; `tools/list` (with descriptions + server
   instructions) tells the model what exists.
 

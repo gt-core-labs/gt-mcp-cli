@@ -24,11 +24,9 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 const INSTRUCTIONS: &str = "\
-The gt-core operator CLI exposed as tools. gt_prime reports the shell's workspace/role/rig; \
+The gt-core client CLI exposed as tools. gt_prime reports the shell's workspace/role/rig; \
 gt_config_* manage the per-project MCP connection saved by `gt init`; gt_workspace_use prints \
-an export line; gt_compose_* drive the deploy stack (docker); gt_update_check peeks for a newer \
-release. gt_help prints the full CLI help. Tools that mutate state (compose) say so in their \
-description.";
+an export line; gt_update_check peeks for a newer release. gt_help prints the full CLI help.";
 
 #[derive(Clone)]
 pub struct GtTools {
@@ -48,13 +46,6 @@ struct PrimeArgs {
 struct WorkspaceUseArgs {
     /// Workspace id to select.
     id: String,
-}
-
-#[derive(Deserialize, JsonSchema, Default)]
-struct ConfirmArgs {
-    /// Must be true to run this destructive action.
-    #[serde(default)]
-    confirm: bool,
 }
 
 #[tool_router]
@@ -104,35 +95,6 @@ impl GtTools {
     )]
     fn gt_workspace_use(&self, Parameters(a): Parameters<WorkspaceUseArgs>) -> CallToolResult {
         run_gt(&["workspace", "use", &a.id])
-    }
-
-    #[tool(
-        name = "gt_compose_up",
-        description = "MUTATES: clone the gt-app deploy repo and `docker compose up -d` the stack."
-    )]
-    fn gt_compose_up(&self) -> CallToolResult {
-        run_gt(&["compose", "up"])
-    }
-
-    #[tool(
-        name = "gt_compose_down",
-        description = "MUTATES: `docker compose down` — stop the stack, data volumes KEPT."
-    )]
-    fn gt_compose_down(&self) -> CallToolResult {
-        run_gt(&["compose", "down"])
-    }
-
-    #[tool(
-        name = "gt_compose_destroy",
-        description = "DESTRUCTIVE: `docker compose down --volumes` — WIPES data. Requires confirm=true."
-    )]
-    fn gt_compose_destroy(&self, Parameters(a): Parameters<ConfirmArgs>) -> CallToolResult {
-        if !a.confirm {
-            return CallToolResult::error(vec![Content::text(
-                "refused: pass confirm=true to wipe the deploy data volumes",
-            )]);
-        }
-        run_gt(&["compose", "destroy", "--yes"])
     }
 
     #[tool(
