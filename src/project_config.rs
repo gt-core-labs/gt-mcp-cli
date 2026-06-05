@@ -181,6 +181,16 @@ impl ConfigStore {
     }
 }
 
+/// Normalize a server base URL: drop a trailing `/` and a trailing `/mcp` segment, so a user
+/// who pastes the MCP endpoint (`https://host/mcp`) still gets the REST base (`https://host`).
+/// The proxy/invoke append `/mcp` themselves, so a stored `/mcp` would otherwise double it, and
+/// REST (`/auth/login`, `/api/v1/*`) would hit the MCP transport (→ HTTP 406).
+pub fn normalize_server_url(url: &str) -> String {
+    let trimmed = url.trim().trim_end_matches('/');
+    let base = trimmed.strip_suffix("/mcp").unwrap_or(trimmed);
+    base.trim_end_matches('/').to_string()
+}
+
 /// Walk up from `start` to the nearest ancestor containing a `.git` entry; fall back
 /// to `start` when the tree has none.
 fn find_repo_root(start: &Path) -> PathBuf {
@@ -321,6 +331,15 @@ mod tests {
         let store = ConfigStore::at(tmp.path().to_path_buf());
         assert!(store.list().unwrap().is_empty());
         assert!(store.active().unwrap().is_none());
+    }
+
+    #[test]
+    fn normalize_strips_mcp_and_slash() {
+        assert_eq!(normalize_server_url("https://h/mcp"), "https://h");
+        assert_eq!(normalize_server_url("https://h/mcp/"), "https://h");
+        assert_eq!(normalize_server_url("https://h/"), "https://h");
+        assert_eq!(normalize_server_url("http://127.0.0.1:8765"), "http://127.0.0.1:8765");
+        assert_eq!(normalize_server_url("  https://h/mcp  "), "https://h");
     }
 
     #[test]

@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 use base64::Engine;
 use gt_mcp::Client;
 
-use crate::project_config::{ConfigStore, ProjectConfig};
+use crate::project_config::{normalize_server_url, ConfigStore, ProjectConfig};
 
 /// Refresh when the access token expires within this window (or is already expired / unreadable).
 const REFRESH_SKEW_SECS: u64 = 120;
@@ -29,9 +29,11 @@ pub async fn load_fresh() -> Result<ProjectConfig> {
             store.dir().display()
         )
     })?;
-    let cfg = store
+    let mut cfg = store
         .get(&name)?
         .ok_or_else(|| anyhow::anyhow!("active config `{name}` is missing"))?;
+    // Defensive: tolerate an older config that stored the /mcp endpoint as the base.
+    cfg.server_url = normalize_server_url(&cfg.server_url);
     refresh_if_needed(&store, &name, cfg).await
 }
 

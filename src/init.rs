@@ -11,7 +11,7 @@
 use anyhow::{bail, Context, Result};
 use gt_mcp::Client;
 
-use crate::project_config::{ConfigStore, ProjectConfig};
+use crate::project_config::{normalize_server_url, ConfigStore, ProjectConfig};
 
 /// Parsed `gt init` flags. Any `None` is resolved by prompting, unless `no_interactive`.
 #[derive(Debug, Default)]
@@ -36,6 +36,8 @@ pub async fn run(args: InitArgs) -> Result<()> {
         Some(s) => s,
         None => prompt_text(args.no_interactive, "Server URL", Some(DEFAULT_SERVER))?,
     };
+    // Tolerate pasting the MCP endpoint: store/use the REST base (drop a trailing /mcp).
+    let server = normalize_server_url(&server);
     let client = Client::new(&server)?;
 
     let email = match args.email {
