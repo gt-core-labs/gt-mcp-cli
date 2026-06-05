@@ -7,10 +7,10 @@
 //!
 //! ## Resolution order
 //!
-//! `GT_WORKSPACE` (env) > `default_workspace` (config.toml, hq-mt-cli.3) > the legacy
-//! `GT_WORKSPACE_DEFAULT_OPT_IN` grace fallback to `default` > abort. A configured default is a
-//! real, named tenant, so it ranks above the catch-all grace `default` but below an explicit env
-//! override.
+//! `GT_WORKSPACE` (env) > the project `.gt-config` active config (set by `gt init`) >
+//! `default_workspace` (user-global config.toml, hq-mt-cli.3) > the legacy
+//! `GT_WORKSPACE_DEFAULT_OPT_IN` grace fallback to `default` > abort. The per-repo project
+//! config ranks above the user-global default but below an explicit env override.
 //!
 //! ## Grace period
 //!
@@ -18,15 +18,15 @@
 //! back to the `default` workspace instead of aborting. It is opt-in on purpose: the abort is
 //! the default so a missing tenant fails loud rather than silently writing to `default`.
 //!
-//! ## Scope (deferred)
+//! ## Role / rig
 //!
-//! `role`/`rig` are read straight from `GT_ROLE`/`GT_RIG`. an upstream `gt prime` additionally
+//! `role` and `rig` resolve `GT_ROLE`/`GT_RIG` (env) > the project `.gt-config` > unset, so the
+//! whole shell context lives in the config once `gt init` ran. An upstream `gt prime` also
 //! infers role from the cwd/town-root layout (`find_town_root`, `detect_role_from_cwd`); that
-//! machinery is **not** ported here — it rides in with the wider `gt` CLI unification
-//! (hq-mod-flags.5). Until then `prime` reports the env-declared identity only.
+//! machinery is **not** ported here (hq-mod-flags.5).
 
 use crate::config::Config;
-use crate::project_config::ConfigStore;
+use crate::project_config::{ConfigStore, ProjectConfig};
 use serde_json::json;
 
 /// Outcome of resolving the workspace from the environment.
@@ -50,12 +50,15 @@ enum Resolved {
 /// user-global `default_workspace` (config.toml) > grace `default` opt-in > abort. The project
 /// config ranks above the user-global default (it is the more specific, per-repo choice) but
 /// below an explicit env override.
-fn resolve_workspace(cfg: &Config) -> Resolved {
+fn resolve_workspace(cfg: &Config, proj: Option<&ProjectConfig>) -> Resolved {
     if let Some(ws) = non_empty("GT_WORKSPACE") {
         return Resolved::Env(ws);
     }
-    if let Some(ws) = project_workspace() {
-        return Resolved::ProjectConfig(ws);
+    if let Some(ws) = proj
+        .map(|c| c.workspace.as_str())
+        .filter(|s| !s.is_empty())
+    {
+        return Resolved::ProjectConfig(ws.to_string());
     }
     if let Some(ws) = cfg.default_workspace.as_deref().filter(|s| !s.is_empty()) {
         return Resolved::ConfigDefault(ws.to_string());
@@ -66,12 +69,10 @@ fn resolve_workspace(cfg: &Config) -> Resolved {
     Resolved::Missing
 }
 
-/// The workspace of the active per-project `.gt-config` config, if any. Best-effort: any error
-/// (no config dir, unreadable, empty) yields `None` so resolution falls through.
-fn project_workspace() -> Option<String> {
-    let store = ConfigStore::discover().ok()?;
-    let ws = store.active().ok()??.workspace;
-    Some(ws).filter(|s| !s.is_empty())
+/// The active per-project `.gt-config` config, if any. Best-effort: any error (no config dir,
+/// unreadable) yields `None` so resolution falls through to the env / user-global config.
+fn active_project() -> Option<ProjectConfig> {
+    ConfigStore::discover().ok()?.active().ok().flatten()
 }
 
 /// A non-empty environment variable, or `None`.
@@ -93,7 +94,8 @@ fn opt_in_enabled() -> bool {
 /// `GT_WORKSPACE` is unset and the grace opt-in is absent.
 pub fn run(json: bool) -> i32 {
     let cfg = Config::load();
-    let (workspace, source) = match resolve_workspace(&cfg) {
+    let proj = active_project();
+    let (workspace, source) = match resolve_workspace(&cfg, proj.as_ref()) {
         Resolved::Env(ws) => (ws, "env"),
         Resolved::ProjectConfig(ws) => (ws, "gt-config"),
         Resolved::ConfigDefault(ws) => (ws, "config-default"),
@@ -104,8 +106,12 @@ pub fn run(json: bool) -> i32 {
         }
     };
 
-    let role = non_empty("GT_ROLE").unwrap_or_else(|| "unknown".to_string());
-    let rig = non_empty("GT_RIG");
+    // Role + rig also resolve env > .gt-config, so the whole context lives in the config.
+    let role = non_empty("GT_ROLE")
+        .or_else(|| proj.as_ref().and_then(|c| c.role.clone()).filter(|s| !s.is_empty()))
+        .unwrap_or_else(|| "unknown".to_string());
+    let rig = non_empty("GT_RIG")
+        .or_else(|| proj.as_ref().map(|c| c.rig.clone()).filter(|s| !s.is_empty()));
 
     if json {
         let _ = println!(
@@ -188,7 +194,7 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         std::env::set_var("GT_WORKSPACE", "acme");
-        assert!(matches!(resolve_workspace(&no_cfg()), Resolved::Env(ws) if ws == "acme"));
+        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Env(ws) if ws == "acme"));
         clear();
     }
 
@@ -197,7 +203,7 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         std::env::set_var("GT_WORKSPACE", "");
-        assert!(matches!(resolve_workspace(&no_cfg()), Resolved::Missing));
+        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Missing));
         clear();
     }
 
@@ -205,7 +211,7 @@ mod tests {
     fn missing_without_opt_in_aborts() {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
-        assert!(matches!(resolve_workspace(&no_cfg()), Resolved::Missing));
+        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Missing));
         clear();
     }
 
@@ -214,7 +220,7 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         std::env::set_var("GT_WORKSPACE_DEFAULT_OPT_IN", "1");
-        assert!(matches!(resolve_workspace(&no_cfg()), Resolved::GraceDefault));
+        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::GraceDefault));
         clear();
     }
 
@@ -223,7 +229,7 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         std::env::set_var("GT_WORKSPACE_DEFAULT_OPT_IN", "0");
-        assert!(matches!(resolve_workspace(&no_cfg()), Resolved::Missing));
+        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Missing));
         clear();
     }
 
@@ -233,7 +239,7 @@ mod tests {
         clear();
         std::env::set_var("GT_WORKSPACE", "acme");
         std::env::set_var("GT_WORKSPACE_DEFAULT_OPT_IN", "1");
-        assert!(matches!(resolve_workspace(&no_cfg()), Resolved::Env(ws) if ws == "acme"));
+        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Env(ws) if ws == "acme"));
         clear();
     }
 
@@ -242,7 +248,7 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         assert!(matches!(
-            resolve_workspace(&cfg_ws("beta")),
+            resolve_workspace(&cfg_ws("beta"), None),
             Resolved::ConfigDefault(ws) if ws == "beta"
         ));
         clear();
@@ -254,7 +260,7 @@ mod tests {
         clear();
         std::env::set_var("GT_WORKSPACE", "acme");
         assert!(matches!(
-            resolve_workspace(&cfg_ws("beta")),
+            resolve_workspace(&cfg_ws("beta"), None),
             Resolved::Env(ws) if ws == "acme"
         ));
         clear();
@@ -266,7 +272,7 @@ mod tests {
         clear();
         std::env::set_var("GT_WORKSPACE_DEFAULT_OPT_IN", "1");
         assert!(matches!(
-            resolve_workspace(&cfg_ws("beta")),
+            resolve_workspace(&cfg_ws("beta"), None),
             Resolved::ConfigDefault(ws) if ws == "beta"
         ));
         clear();

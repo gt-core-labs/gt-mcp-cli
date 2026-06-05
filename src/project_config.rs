@@ -35,6 +35,10 @@ pub struct ProjectConfig {
     pub workspace: String,
     /// The rig prefix new beads land under (issues.create routing).
     pub rig: String,
+    /// The role this shell speaks as (e.g. sheriff/deacon). Optional context surfaced by
+    /// `gt prime`; defaulted for back-compat with configs written before it existed.
+    #[serde(default)]
+    pub role: Option<String>,
     /// The RS256 access JWT from `/auth/login`. Short-lived; refreshed on 401.
     pub access_token: String,
     /// The opaque refresh token, exchanged at `/auth/refresh` when the access expires.
@@ -235,6 +239,7 @@ mod tests {
             server_url: "http://127.0.0.1:8765".into(),
             workspace: ws.into(),
             rig: "core".into(),
+            role: None,
             access_token: "access".into(),
             refresh_token: "refresh".into(),
         }

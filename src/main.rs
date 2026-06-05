@@ -107,6 +107,9 @@ struct InitCmd {
     /// Rig name or prefix to target (offered as a menu if omitted).
     #[arg(long)]
     rig: Option<String>,
+    /// Role this shell speaks as (optional context, e.g. sheriff/deacon).
+    #[arg(long)]
+    role: Option<String>,
     /// Name to save this config under (defaults to the workspace id).
     #[arg(long)]
     name: Option<String>,
@@ -184,6 +187,7 @@ fn run_async(cmd: Command) -> i32 {
                     password: c.password,
                     workspace: c.workspace,
                     rig: c.rig,
+                    role: c.role,
                     name: c.name,
                     no_interactive: c.no_interactive,
                 })

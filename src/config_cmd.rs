@@ -43,6 +43,7 @@ pub fn show() -> Result<()> {
     println!("server_url: {}", cfg.server_url);
     println!("workspace:  {}", cfg.workspace);
     println!("rig:        {}", cfg.rig);
+    println!("role:       {}", cfg.role.as_deref().unwrap_or("(none)"));
     println!("access_token:  <redacted, {} chars>", cfg.access_token.len());
     println!("refresh_token: <redacted>");
     Ok(())

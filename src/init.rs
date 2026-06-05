@@ -21,6 +21,7 @@ pub struct InitArgs {
     pub password: Option<String>,
     pub workspace: Option<String>,
     pub rig: Option<String>,
+    pub role: Option<String>,
     pub name: Option<String>,
     /// Fail instead of prompting for anything still missing (CI / scripts).
     pub no_interactive: bool,
@@ -101,6 +102,17 @@ pub async fn run(args: InitArgs) -> Result<()> {
         }
     };
 
+    // Role is optional context (no server lookup): a flag, an optional prompt, or none.
+    let role = match args.role {
+        Some(r) if !r.is_empty() => Some(r),
+        Some(_) => None,
+        None if args.no_interactive => None,
+        None => {
+            let r = prompt_text_optional("Role (optional)")?;
+            Some(r).filter(|s| !s.is_empty())
+        }
+    };
+
     let name = match args.name {
         Some(n) => n,
         None => prompt_text(args.no_interactive, "Config name", Some(&workspace))?,
@@ -110,6 +122,7 @@ pub async fn run(args: InitArgs) -> Result<()> {
         server_url: server,
         workspace: workspace.clone(),
         rig: rig.clone(),
+        role,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
     };
@@ -133,6 +146,15 @@ fn prompt_text(no_interactive: bool, label: &str, default: Option<&str>) -> Resu
         t = t.with_default(d);
     }
     t.prompt().with_context(|| format!("prompt {label}"))
+}
+
+/// Prompt for an optional free-text value (empty is allowed → caller treats as "none").
+fn prompt_text_optional(label: &str) -> Result<String> {
+    let prompt = format!("{label}:");
+    inquire::Text::new(&prompt)
+        .with_default("")
+        .prompt()
+        .with_context(|| format!("prompt {label}"))
 }
 
 fn prompt_password(no_interactive: bool) -> Result<String> {
