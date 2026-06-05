@@ -161,8 +161,12 @@ fn prompt_password(no_interactive: bool) -> Result<String> {
     if no_interactive {
         bail!("missing value for `Password` (non-interactive: pass --password)");
     }
+    // Masked by default, but Ctrl+R toggles to reveal what you type (handy to catch typos).
     inquire::Password::new("Password:")
         .without_confirmation()
+        .with_display_mode(inquire::PasswordDisplayMode::Masked)
+        .with_display_toggle_enabled()
+        .with_help_message("press Ctrl+R to show/hide the password")
         .prompt()
         .context("prompt password")
 }
