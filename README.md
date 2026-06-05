@@ -1,15 +1,24 @@
 # gt
 
-The **Gas Town operator CLI** — a small, offline command set for driving a Gas Town
-deployment from the shell. It reports the workspace context your shell carries and manages
-the deploy stack. It does **not** talk to the orchestrator over MCP: agents speak MCP
-natively, so `gt` stays a thin local tool (environment + git + docker).
+The **Gas Town operator CLI**. Two halves:
 
-## Build / install
+- **Offline** — `prime`/`workspace`/`compose`: report the workspace context your shell
+  carries and manage the deploy stack (environment + git + docker, no network).
+- **MCP connection** — `init`/`config`/`mcp`: connect a project to a gt-core server, then
+  expose its tools to an agent as a stdio MCP proxy. The wire logic lives in the
+  [`gt-mcp`](https://crates.io/crates/gt-mcp) crate, kept isolated from this CLI.
+
+## Install
 
 ```sh
-cargo build              # target/debug/gt
-cargo install --path .   # installs gt on PATH (cargo bin)
+curl -fsSL https://raw.githubusercontent.com/gt-core-labs/gt/main/install.sh | bash
+```
+
+Installs the latest `gt` to `~/.local/bin` (override with `GT_INSTALL_DIR`, pin with
+`GT_VERSION=vX.Y.Z`). Then keep it current with `gt update`. From source instead:
+
+```sh
+cargo install --git https://github.com/gt-core-labs/gt   # or: cargo build
 ```
 
 ## Usage
@@ -24,6 +33,12 @@ eval "$(gt workspace use acme)"
 gt compose up             # clone gt-app deploy repo + docker compose up -d
 gt compose down           # docker compose down — data volumes KEPT
 gt compose destroy --yes  # docker compose down --volumes — WIPES data
+
+gt init                   # first-run wizard: log in, pick a workspace + rig, save config
+gt config list            # per-project named configs under .gt-config/ (active marked *)
+gt config use <name>      # switch the active config
+gt mcp                    # stdio MCP proxy against the active config (for .mcp.json)
+gt update                 # self-update to the latest release (--check to peek)
 ```
 
 ### `prime`
@@ -59,14 +74,31 @@ pulls the published `codecsrayo/gt-core-mcp-server` image and starts the dolt+pg
 - **`destroy --yes` wipes the data.** Dropping the volumes is a separate, explicit command
   that refuses to run without `--yes`.
 
-## Letting Claude Code agents use the orchestrator (native MCP)
+### `init` / `config`
 
-Claude Code speaks MCP natively — register the gt-mcp server once and its tools appear as
-native tools. `gt` itself is not involved in that path; it only stands up the stack
-(`gt compose up`) the agents then connect to.
+`gt init` is the first-run wizard: it logs in to a gt-core server (`/auth/login`), lists its
+workspaces and rigs, lets you pick one of each, and saves a named config under `.gt-config/`
+in the project (marked active). The directory holds tokens, so `init` guarantees it is
+git-ignored (creating/appending `.gitignore`). Every prompt has a flag
+(`--server/--email/--password/--workspace/--rig/--name -y`) for unattended/CI use.
 
-```json
-"mcpServers": {
-  "gt-mcp": { "type": "http", "url": "http://127.0.0.1:8765/mcp" }
-}
-```
+`gt config list|use|show` manages the per-project configs — a repo can target several
+workspaces/rigs and flip between them.
+
+## Letting Claude Code agents use the orchestrator (MCP)
+
+Two ways to wire the orchestrator's MCP tools into an agent:
+
+- **`gt mcp` (per-project, authenticated)** — a stdio↔HTTP proxy that forwards to the
+  server's `/mcp`, injecting the active config's bearer token + workspace. New server tools
+  appear automatically (generic passthrough). Point the agent at it:
+
+  ```json
+  "mcpServers": { "gt": { "command": "gt", "args": ["mcp"] } }
+  ```
+
+- **Direct HTTP (loopback dev, no auth)** — for a local server with auth off:
+
+  ```json
+  "mcpServers": { "gt-mcp": { "type": "http", "url": "http://127.0.0.1:8765/mcp" } }
+  ```

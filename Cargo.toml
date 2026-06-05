@@ -1,12 +1,12 @@
 [package]
 name = "gt"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
-description = "Gas Town operator CLI — workspace context (prime) and deploy-stack management (compose)."
+description = "Gas Town operator CLI — workspace context (prime), deploy-stack management (compose), and a per-project MCP connection (init/config/mcp)."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gt-core-labs/gt"
 readme = "README.md"
-keywords = ["cli", "gastown", "docker-compose", "deploy"]
+keywords = ["cli", "gastown", "mcp", "docker-compose"]
 categories = ["command-line-utilities"]
 
 [[bin]]
@@ -19,3 +19,18 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 anyhow = "1"
+# Server-comms client + stdio↔HTTP MCP proxy, downloaded as a published crate so the
+# CLI/UX logic here stays isolated from it.
+gt-mcp = "0.1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# Interactive first-run wizard (`gt init`).
+inquire = "0.7"
+# `gt update`: in-place self-update from this repo's GitHub releases.
+self_update = { version = "0.42", default-features = false, features = [
+    "rustls",
+    "archive-tar",
+    "compression-flate2",
+] }
+
+[dev-dependencies]
+tempfile = "3"

@@ -1,23 +1,31 @@
 //! `gt` — the Gas Town operator CLI.
 //!
-//! A small, offline command set for driving a Gas Town deployment from the shell:
-//!
 //! - `gt prime` — report the active workspace/role/rig the shell carries.
 //! - `gt workspace use <id>` — print an `export GT_WORKSPACE=<id>` line to eval.
 //! - `gt compose up|down|destroy` — clone the `gt-app` deploy repo and drive `docker compose`.
+//! - `gt init` — first-run wizard: log in, pick a workspace + rig, save a per-project config.
+//! - `gt config list|use|show` — manage the per-project `.gt-config/` connection configs.
+//! - `gt mcp` — stdio MCP entrypoint for `.mcp.json`; proxies to the server's `/mcp`.
+//! - `gt update` — self-update the installed binary to the latest release.
 //!
-//! Every command runs locally: it inspects the environment or drives git + docker. The CLI
-//! never opens a network/MCP session — agents talk to the orchestrator over MCP natively.
+//! `prime`/`workspace`/`compose` are offline (env + git + docker). `init`/`config`/`mcp`
+//! talk to a gt-core server through the `gt-mcp` crate.
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod compose;
 mod config;
+mod config_cmd;
+mod init;
 mod prime;
+mod project_config;
+mod update;
 mod workspace_cmd;
 
 use compose::ComposeAction;
+use init::InitArgs;
+use project_config::ConfigStore;
 use workspace_cmd::WorkspaceAction;
 
 #[derive(Parser)]
@@ -48,15 +56,124 @@ enum Command {
         #[command(subcommand)]
         action: ComposeAction,
     },
+    /// First-run wizard: log in, pick a workspace + rig, save a per-project config.
+    Init(InitCmd),
+    /// Manage the per-project named configs under `.gt-config/`.
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+    /// Run the stdio MCP proxy against the active config (for `.mcp.json`).
+    Mcp,
+    /// Update the installed `gt` binary to the latest GitHub release.
+    Update {
+        /// Only report whether a newer version exists; do not download.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
-fn main() -> Result<()> {
+#[derive(clap::Args)]
+struct InitCmd {
+    /// Server base URL (prompted if omitted).
+    #[arg(long, env = "GT_SERVER")]
+    server: Option<String>,
+    /// Login email (prompted if omitted).
+    #[arg(long, env = "GT_EMAIL")]
+    email: Option<String>,
+    /// Login password (prompted, hidden, if omitted).
+    #[arg(long, env = "GT_PASSWORD")]
+    password: Option<String>,
+    /// Workspace id to target (offered as a menu if omitted).
+    #[arg(long)]
+    workspace: Option<String>,
+    /// Rig name or prefix to target (offered as a menu if omitted).
+    #[arg(long)]
+    rig: Option<String>,
+    /// Name to save this config under (defaults to the workspace id).
+    #[arg(long)]
+    name: Option<String>,
+    /// Never prompt; fail if any required value is missing (CI / scripts).
+    #[arg(long = "yes", short = 'y')]
+    no_interactive: bool,
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// List every named config (active marked `*`).
+    List,
+    /// Set the active config.
+    Use {
+        /// Config name to activate.
+        name: String,
+    },
+    /// Print the active config (tokens redacted).
+    Show,
+}
+
+fn main() {
     let cli = Cli::parse();
 
-    let code = match &cli.cmd {
-        Command::Prime { json } => prime::run(*json),
-        Command::Workspace { action } => workspace_cmd::run(action),
-        Command::Compose { action } => compose::run(action),
+    let code = match cli.cmd {
+        // Offline commands return their own exit code.
+        Command::Prime { json } => prime::run(json),
+        Command::Workspace { action } => workspace_cmd::run(&action),
+        Command::Compose { action } => compose::run(&action),
+        // Networked commands are async; run them on a runtime and map Result → exit code.
+        cmd => run_async(cmd),
     };
     std::process::exit(code);
+}
+
+/// Drive the async subcommands (init/config/mcp/update) and turn the `Result` into a process
+/// exit code, printing the error chain on failure.
+fn run_async(cmd: Command) -> i32 {
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("error: failed to start the async runtime: {e}");
+            return 1;
+        }
+    };
+    let result: Result<()> = rt.block_on(async move {
+        match cmd {
+            Command::Init(c) => {
+                init::run(InitArgs {
+                    server: c.server,
+                    email: c.email,
+                    password: c.password,
+                    workspace: c.workspace,
+                    rig: c.rig,
+                    name: c.name,
+                    no_interactive: c.no_interactive,
+                })
+                .await
+            }
+            Command::Config { action } => match action {
+                ConfigAction::List => config_cmd::list(),
+                ConfigAction::Use { name } => config_cmd::use_config(&name),
+                ConfigAction::Show => config_cmd::show(),
+            },
+            Command::Mcp => {
+                let store = ConfigStore::discover()?;
+                let cfg = store.active()?.ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "no active config in {} — run `gt init` first",
+                        store.dir().display()
+                    )
+                })?;
+                gt_mcp::proxy::run(&cfg.server_url, &cfg.access_token, &cfg.workspace).await
+            }
+            Command::Update { check } => update::run(check).await,
+            // The offline arms are handled in `main`.
+            _ => unreachable!("offline command routed to run_async"),
+        }
+    });
+    match result {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("error: {e:#}");
+            1
+        }
+    }
 }

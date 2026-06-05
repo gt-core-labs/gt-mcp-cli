@@ -59,12 +59,12 @@ jobs:
       - name: Package tarball
         id: pkg
         run: |
+          # The archive holds the `gt` binary at its ROOT (not in a subdir), so
+          # install.sh and `gt update` (self_update) find it without a path hint.
           BIN=gt
           DIST="${BIN}-${{ matrix.target }}"
-          mkdir -p "dist/${DIST}"
-          cp "target/${{ matrix.target }}/release/${BIN}" "dist/${DIST}/"
-          cp README.md "dist/${DIST}/" 2>/dev/null || true
-          tar -czf "dist/${DIST}.tar.gz" -C dist "${DIST}"
+          mkdir -p dist
+          tar -czf "dist/${DIST}.tar.gz" -C "target/${{ matrix.target }}/release" "${BIN}"
           ( cd dist && sha256sum "${DIST}.tar.gz" > "${DIST}.tar.gz.sha256" )
           echo "asset=dist/${DIST}.tar.gz" >> "$GITHUB_OUTPUT"
 
