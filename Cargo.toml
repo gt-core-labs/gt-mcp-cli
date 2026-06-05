@@ -1,6 +1,6 @@
 [package]
 name = "gt"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 description = "gt-core operator CLI — workspace context (prime), deploy-stack management (compose), a per-project MCP connection (init/config/mcp), and self-registration as MCP tools (tools/register)."
 license = "MIT OR Apache-2.0"

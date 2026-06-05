@@ -26,12 +26,15 @@
 //! (hq-mod-flags.5). Until then `prime` reports the env-declared identity only.
 
 use crate::config::Config;
+use crate::project_config::ConfigStore;
 use serde_json::json;
 
 /// Outcome of resolving the workspace from the environment.
 enum Resolved {
     /// `GT_WORKSPACE` was set: the tenant the shell declared.
     Env(String),
+    /// The active per-project `.gt-config` (set by `gt init`) supplied the tenant.
+    ProjectConfig(String),
     /// `GT_WORKSPACE` was unset; `default_workspace` from config.toml supplied the tenant.
     ConfigDefault(String),
     /// `GT_WORKSPACE` was unset but `GT_WORKSPACE_DEFAULT_OPT_IN` allowed the legacy fallback.
@@ -43,10 +46,16 @@ enum Resolved {
 /// Resolve the active workspace. Empty strings are treated as unset (an exported-but-empty
 /// `GT_WORKSPACE=` is a misconfiguration, not a tenant named "").
 ///
-/// Precedence: env `GT_WORKSPACE` > config `default_workspace` > grace `default` opt-in > abort.
+/// Precedence: env `GT_WORKSPACE` > the project `.gt-config` active config (set by `gt init`) >
+/// user-global `default_workspace` (config.toml) > grace `default` opt-in > abort. The project
+/// config ranks above the user-global default (it is the more specific, per-repo choice) but
+/// below an explicit env override.
 fn resolve_workspace(cfg: &Config) -> Resolved {
     if let Some(ws) = non_empty("GT_WORKSPACE") {
         return Resolved::Env(ws);
+    }
+    if let Some(ws) = project_workspace() {
+        return Resolved::ProjectConfig(ws);
     }
     if let Some(ws) = cfg.default_workspace.as_deref().filter(|s| !s.is_empty()) {
         return Resolved::ConfigDefault(ws.to_string());
@@ -55,6 +64,14 @@ fn resolve_workspace(cfg: &Config) -> Resolved {
         return Resolved::GraceDefault;
     }
     Resolved::Missing
+}
+
+/// The workspace of the active per-project `.gt-config` config, if any. Best-effort: any error
+/// (no config dir, unreadable, empty) yields `None` so resolution falls through.
+fn project_workspace() -> Option<String> {
+    let store = ConfigStore::discover().ok()?;
+    let ws = store.active().ok()??.workspace;
+    Some(ws).filter(|s| !s.is_empty())
 }
 
 /// A non-empty environment variable, or `None`.
@@ -78,6 +95,7 @@ pub fn run(json: bool) -> i32 {
     let cfg = Config::load();
     let (workspace, source) = match resolve_workspace(&cfg) {
         Resolved::Env(ws) => (ws, "env"),
+        Resolved::ProjectConfig(ws) => (ws, "gt-config"),
         Resolved::ConfigDefault(ws) => (ws, "config-default"),
         Resolved::GraceDefault => ("default".to_string(), "grace-default"),
         Resolved::Missing => {
@@ -114,6 +132,7 @@ pub fn run(json: bool) -> i32 {
 /// The trailing note shown after a non-env workspace in text mode, explaining where it came from.
 fn grace_note(source: &str) -> &'static str {
     match source {
+        "gt-config" => "  (GT_WORKSPACE unset — project .gt-config)",
         "config-default" => "  (GT_WORKSPACE unset — config default_workspace)",
         "grace-default" => "  (GT_WORKSPACE unset — legacy GT_WORKSPACE_DEFAULT_OPT_IN fallback)",
         _ => "",
@@ -127,6 +146,9 @@ fn abort_missing() {
     eprintln!();
     eprintln!("Set the tenant this shell speaks for:");
     eprintln!("    export GT_WORKSPACE=<your-workspace>");
+    eprintln!();
+    eprintln!("Or connect this project (writes .gt-config in the repo):");
+    eprintln!("    gt init");
     eprintln!();
     eprintln!("Or set a persistent default in ~/.config/gt/config.toml:");
     eprintln!("    default_workspace = \"<your-workspace>\"");
