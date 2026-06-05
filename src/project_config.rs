@@ -134,7 +134,10 @@ impl ConfigStore {
         Ok(active.active)
     }
 
-    /// The active config itself, resolving the pointer through [`get`](Self::get).
+    /// The active config itself, resolving the pointer through [`get`](Self::get). Kept as a
+    /// convenience accessor (used by tests); callers that also need the name use
+    /// [`active_name`](Self::active_name) + [`get`](Self::get).
+    #[allow(dead_code)]
     pub fn active(&self) -> Result<Option<ProjectConfig>> {
         match self.active_name()? {
             Some(name) => self.get(&name),

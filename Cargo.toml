@@ -1,6 +1,6 @@
 [package]
 name = "gt"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "gt-core operator CLI — workspace context (prime), deploy-stack management (compose), a per-project MCP connection (init/config/mcp), and self-registration as MCP tools (tools/register)."
 license = "MIT OR Apache-2.0"
@@ -23,6 +23,8 @@ anyhow = "1"
 # CLI/UX logic here stays isolated from it.
 gt-mcp = "0.1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# Decode the access-token JWT `exp` claim (no verification) to refresh pre-flight.
+base64 = "0.22"
 # Interactive first-run wizard (`gt init`).
 inquire = "0.7"
 # `gt update`: in-place self-update from this repo's GitHub releases.

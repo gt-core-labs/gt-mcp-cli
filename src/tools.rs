@@ -32,6 +32,8 @@ description.";
 
 #[derive(Clone)]
 pub struct GtTools {
+    // Read by the `#[tool_handler]`-generated dispatch, not by hand.
+    #[allow(dead_code)]
     tool_router: ToolRouter<GtTools>,
 }
 

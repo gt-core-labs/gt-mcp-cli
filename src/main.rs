@@ -21,6 +21,7 @@ mod init;
 mod prime;
 mod project_config;
 mod register;
+mod session;
 mod tools;
 mod update;
 mod workspace_cmd;
@@ -195,12 +196,18 @@ fn run_async(cmd: Command) -> i32 {
             },
             Command::Mcp => {
                 let store = ConfigStore::discover()?;
-                let cfg = store.active()?.ok_or_else(|| {
+                let name = store.active_name()?.ok_or_else(|| {
                     anyhow::anyhow!(
                         "no active config in {} — run `gt init` first",
                         store.dir().display()
                     )
                 })?;
+                let cfg = store
+                    .get(&name)?
+                    .ok_or_else(|| anyhow::anyhow!("active config `{name}` is missing"))?;
+                // Pre-flight: refresh + persist a stale access token so the proxy never
+                // forwards an expired bearer.
+                let cfg = session::refresh_if_needed(&store, &name, cfg).await?;
                 gt_mcp::proxy::run(&cfg.server_url, &cfg.access_token, &cfg.workspace).await
             }
             Command::Tools => tools::run().await,

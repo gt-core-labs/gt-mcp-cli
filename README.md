@@ -93,8 +93,10 @@ workspaces/rigs and flip between them.
 Two ways to wire the orchestrator's MCP tools into an agent:
 
 - **`gt mcp` (per-project, authenticated)** — a stdio↔HTTP proxy that forwards to the
-  server's `/mcp`, injecting the active config's bearer token + workspace. New server tools
-  appear automatically (generic passthrough). Point the agent at it:
+  server's `/mcp`, injecting the active config's bearer token + workspace. It refreshes a
+  stale access token from `.gt-config` before connecting (pre-flight `/auth/refresh`), so a
+  config saved earlier keeps working. New server tools appear automatically (generic
+  passthrough). Point the agent at it:
 
   ```json
   "mcpServers": { "gt": { "command": "gt", "args": ["mcp"] } }
