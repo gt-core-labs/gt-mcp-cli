@@ -35,6 +35,9 @@ gt init                   # first-run wizard: log in, pick a workspace + rig, sa
 gt config list            # per-project named configs under .gt-config/ (active marked *)
 gt config use <name>      # switch the active config
 gt mcp                    # stdio MCP proxy against the active config (for .mcp.json)
+gt mcp list               # list the server's tools
+gt mcp call <tool> '<json>'   # call a tool from the shell ('-' reads args from stdin)
+gt mcp resource <uri>     # read a resource, e.g. gt mcp resource 'gt://issues?limit=10'
 gt tools                  # serve gt's own subcommands as MCP tools (for .mcp.json)
 gt register               # write ./.mcp.json registering `gt` + `gt-tools` (--global → ~/.claude.json)
 gt unregister             # remove those MCP entries
@@ -76,6 +79,19 @@ workspaces/rigs and flip between them.
 ## Letting Claude Code agents use the orchestrator (MCP)
 
 Two ways to wire the orchestrator's MCP tools into an agent:
+
+For shell scripts (and agents that shell out), drive tools directly:
+
+```sh
+gt mcp list                                   # discover tools
+gt mcp call issues.transition.execute '{"id":"hq-x.1","target":"working"}'
+gt mcp resource 'gt://issues?external_ref=hq-x'
+```
+
+These run one authenticated MCP call against the active `.gt-config` (token refreshed
+pre-flight) and print JSON. They replace the retired `gt-mcp-cli`.
+
+For an MCP client (Claude Code) wiring the whole tool surface natively:
 
 - **`gt mcp` (per-project, authenticated)** — a stdio↔HTTP proxy that forwards to the
   server's `/mcp`, injecting the active config's bearer token + workspace. It refreshes a

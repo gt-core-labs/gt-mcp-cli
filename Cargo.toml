@@ -1,6 +1,6 @@
 [package]
 name = "gt"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "gt-core client CLI — workspace context (prime/workspace), a per-project MCP connection (init/config/mcp), and self-registration as MCP tools (tools/register)."
 license = "MIT OR Apache-2.0"
@@ -21,7 +21,7 @@ toml = "0.8"
 anyhow = "1"
 # Server-comms client + stdio↔HTTP MCP proxy, downloaded as a published crate so the
 # CLI/UX logic here stays isolated from it.
-gt-mcp = "0.1"
+gt-mcp = "0.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # Decode the access-token JWT `exp` claim (no verification) to refresh pre-flight.
 base64 = "0.22"

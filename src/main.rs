@@ -21,6 +21,7 @@ use clap::{Parser, Subcommand};
 mod config;
 mod config_cmd;
 mod init;
+mod mcp_cmd;
 mod prime;
 mod project_config;
 mod register;
@@ -30,7 +31,6 @@ mod update;
 mod workspace_cmd;
 
 use init::InitArgs;
-use project_config::ConfigStore;
 use workspace_cmd::WorkspaceAction;
 
 #[derive(Parser)]
@@ -50,8 +50,12 @@ enum Command {
     },
     /// First-run wizard: log in, pick a workspace + rig, save a per-project config.
     Init(InitCmd),
-    /// Run the stdio MCP proxy against the active config (for `.mcp.json`).
-    Mcp,
+    /// MCP client against the active config: no subcommand = stdio proxy (for `.mcp.json`);
+    /// `call`/`list`/`resources`/`resource` drive tools from the shell.
+    Mcp {
+        #[command(subcommand)]
+        action: Option<McpAction>,
+    },
     /// Report the active workspace/role/rig. Resolves GT_WORKSPACE > project .gt-config >
     /// user-global default > grace opt-in > abort. Reads the environment + config only.
     Prime {
@@ -127,6 +131,28 @@ enum ConfigAction {
     Show,
 }
 
+#[derive(Subcommand)]
+enum McpAction {
+    /// Call a tool: `gt mcp call <tool> '<json-args>'` (args: positional JSON, or `-` for stdin).
+    Call {
+        /// Tool name, e.g. `issues.transition.execute`.
+        tool: String,
+        /// JSON object of arguments (omit for none; `-` reads stdin).
+        args: Option<String>,
+    },
+    /// List available tools (name + description + input schema).
+    List,
+    /// Read a resource by URI, e.g. `gt mcp resource 'gt://issues?limit=10'`.
+    Resource {
+        /// Resource URI.
+        uri: String,
+    },
+    /// List available resources.
+    Resources,
+    /// Run the stdio proxy (the default when no subcommand is given; for `.mcp.json`).
+    Serve,
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -135,7 +161,7 @@ fn main() {
     // long-lived) and `update` (which checks already).
     if !matches!(
         cli.cmd,
-        Command::Mcp | Command::Tools | Command::Update { .. }
+        Command::Mcp { .. } | Command::Tools | Command::Update { .. }
     ) {
         update::maybe_notify();
     }
@@ -193,21 +219,18 @@ fn run_async(cmd: Command) -> i32 {
                 ConfigAction::Use { name } => config_cmd::use_config(&name),
                 ConfigAction::Show => config_cmd::show(),
             },
-            Command::Mcp => {
-                let store = ConfigStore::discover()?;
-                let name = store.active_name()?.ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "no active config in {} — run `gt init` first",
-                        store.dir().display()
-                    )
-                })?;
-                let cfg = store
-                    .get(&name)?
-                    .ok_or_else(|| anyhow::anyhow!("active config `{name}` is missing"))?;
-                // Pre-flight: refresh + persist a stale access token so the proxy never
-                // forwards an expired bearer.
-                let cfg = session::refresh_if_needed(&store, &name, cfg).await?;
-                gt_mcp::proxy::run(&cfg.server_url, &cfg.access_token, &cfg.workspace).await
+            Command::Mcp { action } => {
+                // Every mcp op runs against the active config with a guaranteed-fresh token.
+                let cfg = session::load_fresh().await?;
+                match action.unwrap_or(McpAction::Serve) {
+                    McpAction::Serve => {
+                        gt_mcp::proxy::run(&cfg.server_url, &cfg.access_token, &cfg.workspace).await
+                    }
+                    McpAction::Call { tool, args } => mcp_cmd::call(&cfg, &tool, args).await,
+                    McpAction::List => mcp_cmd::list(&cfg).await,
+                    McpAction::Resources => mcp_cmd::resources(&cfg).await,
+                    McpAction::Resource { uri } => mcp_cmd::resource(&cfg, &uri).await,
+                }
             }
             Command::Tools => tools::run().await,
             Command::Update { check } => update::run(check).await,

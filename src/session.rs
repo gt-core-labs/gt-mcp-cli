@@ -18,6 +18,23 @@ use crate::project_config::{ConfigStore, ProjectConfig};
 /// Refresh when the access token expires within this window (or is already expired / unreadable).
 const REFRESH_SKEW_SECS: u64 = 120;
 
+/// Load the active per-project config with a guaranteed-fresh access token. Used by every
+/// `gt mcp` operation (proxy + call/list/resources/resource). Errors when no project is
+/// connected, pointing at `gt init`.
+pub async fn load_fresh() -> Result<ProjectConfig> {
+    let store = ConfigStore::discover()?;
+    let name = store.active_name()?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "no active config in {} — run `gt init` first",
+            store.dir().display()
+        )
+    })?;
+    let cfg = store
+        .get(&name)?
+        .ok_or_else(|| anyhow::anyhow!("active config `{name}` is missing"))?;
+    refresh_if_needed(&store, &name, cfg).await
+}
+
 /// Return `cfg` with a non-expiring access token, refreshing + persisting under `name` when the
 /// current one is stale. A failed refresh is surfaced with a hint to re-run `gt init`.
 pub async fn refresh_if_needed(

@@ -747,7 +747,7 @@ dependencies = [
 
 [[package]]
 name = "gt"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -766,9 +766,9 @@ dependencies = [
 
 [[package]]
 name = "gt-mcp"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08169543ea98db234237f102953a2f58710604db25e91e7a1ce0b31a2711e03c"
+checksum = "c7624263a36e7800d00b32616a78b3dd454bfa9d896713dab52cb1bee97b3d5a"
 dependencies = [
  "anyhow",
  "http",
