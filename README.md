@@ -78,9 +78,9 @@ git-ignored (creating/appending `.gitignore`). Every prompt has a flag
 Ways to authenticate, in precedence order:
 
 - **Browser OAuth** (default) — `gt login` discovers the server's login providers
-  (`GET /auth/providers`), opens your browser to authorize, and captures the session over a
-  one-shot loopback redirect (the token never touches a URL fragment or your shell history). The
-  way `claude login` works. 0 providers ⇒ a clear error pointing at `--token`.
+  (`GET /auth/providers`), opens your browser to authorize, the page shows a one-shot code, and you
+  paste it back into the terminal (the token itself never leaves the server — only the short-lived
+  code does). The way `claude login` works. 0 providers ⇒ a clear error pointing at `--token`.
 - **`--token <gtpat_…>`** (`GT_TOKEN`) — a Personal Access Token used as the access token
   directly (headless / CI). The saved config has an empty `refresh_token` (a PAT has no refresh
   leg), and the token is verified by the next call.
