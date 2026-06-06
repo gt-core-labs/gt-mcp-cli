@@ -2,14 +2,14 @@
 //!
 //! Logs in to a gt-core server, lists its workspaces and rigs, lets the user pick one of
 //! each, and persists the result as a named config under `.gt-config/` (marked active).
-//! Every prompt has a matching flag, so the same command runs unattended in CI: when all
-//! of `--server/--email/--password/--workspace/--rig` are supplied no prompt is shown,
-//! and `--yes` turns a still-missing value into an error rather than a hang.
+//! Every other prompt has a matching flag, so the same command runs unattended in CI: when all
+//! of `--server/--token/--workspace/--rig/--name` are supplied no prompt is shown, and `--yes`
+//! turns a still-missing value into an error rather than a hang.
 //!
-//! Three ways to authenticate, in precedence order: `--token <gtpat_…>` (a Personal Access Token
-//! used directly — no refresh leg, so the saved `refresh_token` is empty); `--email` (the legacy
-//! email+password flow against the native `gt` provider, removed in hq-gt-login-oauth.4); otherwise
-//! the **browser OAuth flow** ([`crate::oauth_login`], the default — the way `claude login` works).
+//! Two ways to authenticate: the **browser OAuth flow** ([`crate::oauth_login`], the default — the
+//! way `claude login` works), or `--token <gtpat_…>` (a Personal Access Token used directly — no
+//! refresh leg, so the saved `refresh_token` is empty — for headless / CI). Email+password is gone
+//! from the CLI; logging in with a password is a browser concern now.
 //!
 //! The REST + MCP wire logic lives in the `gt-mcp` crate; this module is only the UX.
 
@@ -22,10 +22,8 @@ use crate::project_config::{normalize_server_url, ConfigStore, ProjectConfig};
 #[derive(Debug, Default)]
 pub struct InitArgs {
     pub server: Option<String>,
-    pub email: Option<String>,
-    pub password: Option<String>,
-    /// A Personal Access Token (`gtpat_…`). When set, authentication skips email+password and
-    /// uses this as the access token directly.
+    /// A Personal Access Token (`gtpat_…`). When set, authentication uses it as the access token
+    /// directly (headless / CI) instead of the browser OAuth flow.
     pub token: Option<String>,
     pub workspace: Option<String>,
     pub rig: Option<String>,
@@ -48,11 +46,9 @@ pub async fn run(args: InitArgs) -> Result<()> {
     let server = normalize_server_url(&server);
     let client = Client::new(&server)?;
 
-    // Authenticate. Precedence:
-    //   1. `--token gtpat_…` → a Personal Access Token used directly (no refresh leg).
-    //   2. `--email` (legacy email+password against the `gt` provider; removed in
-    //      hq-gt-login-oauth.4). Prompts for the password if `--password` is omitted.
-    //   3. otherwise → the browser OAuth flow (the default), the way `claude login` works.
+    // Authenticate. Either a Personal Access Token used directly (`--token gtpat_…`, no refresh
+    // leg — for headless / CI), or the browser OAuth flow (the default, the way `claude login`
+    // works). Email+password is gone: logging in with a password is a browser concern now.
     let tokens = if let Some(token) = args
         .token
         .as_deref()
@@ -64,13 +60,6 @@ pub async fn run(args: InitArgs) -> Result<()> {
             access_token: token.to_string(),
             refresh_token: String::new(),
         }
-    } else if let Some(email) = args.email.clone() {
-        let password = match args.password.clone() {
-            Some(p) => p,
-            None => prompt_password(args.no_interactive)?,
-        };
-        eprintln!("[gt init] logging in to {server} …");
-        client.login(&email, &password).await?
     } else {
         crate::oauth_login::browser_login(&server).await?
     };
@@ -187,20 +176,6 @@ fn prompt_text_optional(label: &str) -> Result<String> {
         .with_default("")
         .prompt()
         .with_context(|| format!("prompt {label}"))
-}
-
-fn prompt_password(no_interactive: bool) -> Result<String> {
-    if no_interactive {
-        bail!("missing value for `Password` (non-interactive: pass --password)");
-    }
-    // Masked by default, but Ctrl+R toggles to reveal what you type (handy to catch typos).
-    inquire::Password::new("Password:")
-        .without_confirmation()
-        .with_display_mode(inquire::PasswordDisplayMode::Masked)
-        .with_display_toggle_enabled()
-        .with_help_message("press Ctrl+R to show/hide the password")
-        .prompt()
-        .context("prompt password")
 }
 
 fn prompt_select(no_interactive: bool, label: &str, options: &[String]) -> Result<usize> {

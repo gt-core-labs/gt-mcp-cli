@@ -73,7 +73,7 @@ A child process cannot mutate its parent shell, so `use` is offline: it prints a
 a gt-core server (`/auth/login`), lists its workspaces and rigs, lets you pick one of each, and
 saves a named config under `.gt-config/` in the project (marked active). The directory holds tokens, so `init` guarantees it is
 git-ignored (creating/appending `.gitignore`). Every prompt has a flag
-(`--server/--email/--password/--workspace/--rig/--name -y`) for unattended/CI use.
+(`--server/--token/--workspace/--rig/--name -y`) for unattended/CI use.
 
 Ways to authenticate, in precedence order:
 
@@ -84,8 +84,9 @@ Ways to authenticate, in precedence order:
 - **`--token <gtpat_…>`** (`GT_TOKEN`) — a Personal Access Token used as the access token
   directly (headless / CI). The saved config has an empty `refresh_token` (a PAT has no refresh
   leg), and the token is verified by the next call.
-- **`--email <addr>`** — the legacy email+password flow against the native `gt` provider (prompts
-  for the password). Being retired in favour of the browser flow.
+
+Email+password is no longer a CLI flag — logging in with a password is a browser concern now (the
+web app keeps it).
 
 ```sh
 gt login                                                   # browser OAuth (default)

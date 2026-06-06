@@ -100,14 +100,8 @@ struct InitCmd {
     /// Server base URL (prompted if omitted).
     #[arg(long, env = "GT_SERVER")]
     server: Option<String>,
-    /// Login email (prompted if omitted).
-    #[arg(long, env = "GT_EMAIL")]
-    email: Option<String>,
-    /// Login password (prompted, hidden, if omitted).
-    #[arg(long, env = "GT_PASSWORD")]
-    password: Option<String>,
-    /// Log in with a Personal Access Token (`gtpat_…`) instead of email+password. The token
-    /// becomes the access token directly; `--email`/`--password` are ignored when it is set.
+    /// Log in with a Personal Access Token (`gtpat_…`) instead of the browser OAuth flow. The
+    /// token becomes the access token directly (headless / CI).
     #[arg(long, env = "GT_TOKEN")]
     token: Option<String>,
     /// Workspace id to target (offered as a menu if omitted).
@@ -215,8 +209,6 @@ fn run_async(cmd: Command) -> i32 {
             Command::Init(c) | Command::Login(c) => {
                 init::run(InitArgs {
                     server: c.server,
-                    email: c.email,
-                    password: c.password,
                     token: c.token,
                     workspace: c.workspace,
                     rig: c.rig,
