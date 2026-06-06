@@ -1,0 +1,42 @@
+# CI gate: format, lint, and test on every push + PR.
+#
+# Separate from `release.yml` (which only builds + publishes binaries): this is the
+# correctness gate that runs the test suite and rejects unformatted / lint-dirty code
+# before it lands on main.
+name: ci
+
+on:
+  push:
+    branches: ['**']
+    # Skip doc-only / CI-meta churn that cannot affect the build.
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE*'
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: fmt + clippy + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
