@@ -70,7 +70,15 @@ fn cfg_ok(cfg: ProjectConfig) -> Result<ProjectConfig> {
 
 /// True when the JWT is expired, within [`REFRESH_SKEW_SECS`] of expiry, or its `exp` can't be
 /// read (treat unreadable as "refresh" — safer than forwarding a token we can't reason about).
+///
+/// A Personal Access Token (`gtpat_…`) is the exception: it is opaque, long-lived, and has no
+/// `exp` and no refresh leg (`gt login --token` stores an empty refresh token). It is not a JWT,
+/// so `token_exp` would read `None` and send us down the (impossible) refresh path — short-circuit
+/// it as never-needs-refresh and forward it as-is.
 fn needs_refresh(access_token: &str) -> bool {
+    if access_token.starts_with("gtpat_") {
+        return false;
+    }
     match token_exp(access_token) {
         Some(exp) => now_secs().saturating_add(REFRESH_SKEW_SECS) >= exp,
         None => true,
@@ -120,5 +128,13 @@ mod tests {
     fn unreadable_needs_refresh() {
         assert!(needs_refresh("garbage"));
         assert!(needs_refresh(""));
+    }
+
+    #[test]
+    fn pat_never_needs_refresh() {
+        // Opaque PAT: not a JWT, no exp, no refresh leg — must not trigger a refresh attempt.
+        assert!(!needs_refresh(
+            "gtpat_0b2d3890cac361a930b8e59f9cc81a43bb1d1b18abeb5261"
+        ));
     }
 }
