@@ -32,8 +32,8 @@ gt workspace use <id>     # print `export GT_WORKSPACE=<id>` for eval
 eval "$(gt workspace use acme)"
 
 gt init                   # first-run wizard: log in, pick a workspace + rig, save config
-gt login                  # alias of init — same flags, same saved config
-gt login --token gtpat_…  # …authenticate with a Personal Access Token instead of a password
+gt login                  # alias of init — opens the browser to log in via an OAuth provider
+gt login --token gtpat_…  # …authenticate with a Personal Access Token instead (headless/CI)
 gt config list            # per-project named configs under .gt-config/ (active marked *)
 gt config use <name>      # switch the active config
 gt mcp                    # stdio MCP proxy against the active config (for .mcp.json)
@@ -75,15 +75,21 @@ saves a named config under `.gt-config/` in the project (marked active). The dir
 git-ignored (creating/appending `.gitignore`). Every prompt has a flag
 (`--server/--email/--password/--workspace/--rig/--name -y`) for unattended/CI use.
 
-Two ways to authenticate:
+Ways to authenticate, in precedence order:
 
-- **email + password** (default) — the native `gt` identity provider, via `/auth/login`.
+- **Browser OAuth** (default) — `gt login` discovers the server's login providers
+  (`GET /auth/providers`), opens your browser to authorize, and captures the session over a
+  one-shot loopback redirect (the token never touches a URL fragment or your shell history). The
+  way `claude login` works. 0 providers ⇒ a clear error pointing at `--token`.
 - **`--token <gtpat_…>`** (`GT_TOKEN`) — a Personal Access Token used as the access token
-  directly. `--email`/`--password` are ignored; the saved config has an empty `refresh_token`
-  (a PAT has no refresh leg), and the token is verified by the next call.
+  directly (headless / CI). The saved config has an empty `refresh_token` (a PAT has no refresh
+  leg), and the token is verified by the next call.
+- **`--email <addr>`** — the legacy email+password flow against the native `gt` provider (prompts
+  for the password). Being retired in favour of the browser flow.
 
 ```sh
-gt init --server https://gt.codecsrayo.com --token gtpat_… --workspace acme --rig core --name acme -y
+gt login                                                   # browser OAuth (default)
+gt login --token gtpat_… --workspace acme --rig core --name acme -y   # headless / CI
 ```
 
 `gt config list|use|show` manages the per-project configs — a repo can target several

@@ -22,11 +22,18 @@ anyhow = "1"
 # Server-comms client + stdio↔HTTP MCP proxy, downloaded as a published crate so the
 # CLI/UX logic here stays isolated from it.
 gt-mcp = "0.2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util"] }
 # Decode the access-token JWT `exp` claim (no verification) to refresh pre-flight.
 base64 = "0.22"
 # Interactive first-run wizard (`gt init`).
 inquire = "0.7"
+# `gt login` browser flow: provider discovery + one-shot code exchange (REST), and opening the
+# system browser at the authorize URL.
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
+open = "5"
 # `gt update`: in-place self-update from this repo's GitHub releases.
 self_update = { version = "0.42", default-features = false, features = [
     "rustls",

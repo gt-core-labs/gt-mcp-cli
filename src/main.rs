@@ -22,6 +22,7 @@ mod config;
 mod config_cmd;
 mod init;
 mod mcp_cmd;
+mod oauth_login;
 mod prime;
 mod project_config;
 mod register;
@@ -50,9 +51,9 @@ enum Command {
     },
     /// First-run wizard: log in, pick a workspace + rig, save a per-project config.
     Init(InitCmd),
-    /// Authenticate and save a per-project config — alias of `init`. `gt login` runs the
-    /// email+password flow against the `gt` provider; `gt login --token gtpat_…` uses a
-    /// Personal Access Token. Same flags as `init`; both end by writing `.gt-config/`.
+    /// Authenticate and save a per-project config — alias of `init`. `gt login` opens the browser
+    /// to log in with an OAuth provider; `gt login --token gtpat_…` uses a Personal Access Token.
+    /// Same flags as `init`; both end by writing `.gt-config/`.
     Login(InitCmd),
     /// MCP client against the active config: no subcommand = stdio proxy (for `.mcp.json`);
     /// `call`/`list`/`resources`/`resource` drive tools from the shell.
