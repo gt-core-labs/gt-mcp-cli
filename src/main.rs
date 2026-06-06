@@ -25,6 +25,7 @@ mod mcp_cmd;
 mod oauth_login;
 mod prime;
 mod project_config;
+mod quota_cmd;
 mod register;
 mod session;
 mod tools;
@@ -92,6 +93,26 @@ enum Command {
     Workspace {
         #[command(subcommand)]
         action: WorkspaceAction,
+    },
+    /// Claude-account quota ops (`hq-quota-accounts`). `onboard` runs the host-side login + registers
+    /// the account (its id captured from the login handshake) for predictive rotation.
+    Quota {
+        #[command(subcommand)]
+        action: QuotaAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum QuotaAction {
+    /// Onboard a claude account: allocate a credentials dir, `claude auth login` (interactive — paste
+    /// the OOB code), capture the account id from `claude auth status`, and register it over MCP.
+    Onboard {
+        /// Credentials dir (`CLAUDE_CONFIG_DIR`). Omit for a generic `$HOME/.claude-accounts/<ts>`.
+        #[arg(long)]
+        dir: Option<String>,
+        /// Override the account id (default: the login's email from the handshake).
+        #[arg(long)]
+        account: Option<String>,
     },
 }
 
@@ -234,6 +255,14 @@ fn run_async(cmd: Command) -> i32 {
                     McpAction::List => mcp_cmd::list(&cfg).await,
                     McpAction::Resources => mcp_cmd::resources(&cfg).await,
                     McpAction::Resource { uri } => mcp_cmd::resource(&cfg, &uri).await,
+                }
+            }
+            Command::Quota { action } => {
+                let cfg = session::load_fresh().await?;
+                match action {
+                    QuotaAction::Onboard { dir, account } => {
+                        quota_cmd::onboard(&cfg, dir, account).await
+                    }
                 }
             }
             Command::Tools => tools::run().await,
