@@ -32,6 +32,7 @@ gt workspace use <id>     # print `export GT_WORKSPACE=<id>` for eval
 eval "$(gt workspace use acme)"
 
 gt init                   # first-run wizard: log in, pick a workspace + rig, save config
+gt init --token gtpat_…   # …authenticate with a Personal Access Token instead of a password
 gt config list            # per-project named configs under .gt-config/ (active marked *)
 gt config use <name>      # switch the active config
 gt mcp                    # stdio MCP proxy against the active config (for .mcp.json)
@@ -72,6 +73,17 @@ workspaces and rigs, lets you pick one of each, and saves a named config under `
 in the project (marked active). The directory holds tokens, so `init` guarantees it is
 git-ignored (creating/appending `.gitignore`). Every prompt has a flag
 (`--server/--email/--password/--workspace/--rig/--name -y`) for unattended/CI use.
+
+Two ways to authenticate:
+
+- **email + password** (default) — the native `gt` identity provider, via `/auth/login`.
+- **`--token <gtpat_…>`** (`GT_TOKEN`) — a Personal Access Token used as the access token
+  directly. `--email`/`--password` are ignored; the saved config has an empty `refresh_token`
+  (a PAT has no refresh leg), and the token is verified by the next call.
+
+```sh
+gt init --server https://gt.codecsrayo.com --token gtpat_… --workspace acme --rig core --name acme -y
+```
 
 `gt config list|use|show` manages the per-project configs — a repo can target several
 workspaces/rigs and flip between them.

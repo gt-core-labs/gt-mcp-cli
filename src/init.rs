@@ -6,10 +6,15 @@
 //! of `--server/--email/--password/--workspace/--rig` are supplied no prompt is shown,
 //! and `--yes` turns a still-missing value into an error rather than a hang.
 //!
+//! Two ways to authenticate: the email+password flow against the native `gt` provider
+//! (the default), or `--token <gtpat_…>` — a Personal Access Token used as the access token
+//! directly. A PAT has no refresh leg, so the saved config carries an empty `refresh_token`;
+//! the token is verified by the very next call (`list_workspaces`), which 401s if it is bad.
+//!
 //! The REST + MCP wire logic lives in the `gt-mcp` crate; this module is only the UX.
 
 use anyhow::{bail, Context, Result};
-use gt_mcp::Client;
+use gt_mcp::{Client, Tokens};
 
 use crate::project_config::{normalize_server_url, ConfigStore, ProjectConfig};
 
@@ -19,6 +24,9 @@ pub struct InitArgs {
     pub server: Option<String>,
     pub email: Option<String>,
     pub password: Option<String>,
+    /// A Personal Access Token (`gtpat_…`). When set, authentication skips email+password and
+    /// uses this as the access token directly.
+    pub token: Option<String>,
     pub workspace: Option<String>,
     pub rig: Option<String>,
     pub role: Option<String>,
@@ -40,17 +48,29 @@ pub async fn run(args: InitArgs) -> Result<()> {
     let server = normalize_server_url(&server);
     let client = Client::new(&server)?;
 
-    let email = match args.email {
-        Some(e) => e,
-        None => prompt_text(args.no_interactive, "Email", None)?,
+    // Authenticate: a Personal Access Token short-circuits the email+password login (the PAT
+    // becomes the access token, with no refresh leg); otherwise run the `gt` provider flow.
+    let tokens = match args.token.as_deref().map(str::trim) {
+        Some(token) if !token.is_empty() => {
+            eprintln!("[gt init] using the supplied access token");
+            Tokens {
+                access_token: token.to_string(),
+                refresh_token: String::new(),
+            }
+        }
+        _ => {
+            let email = match args.email {
+                Some(e) => e,
+                None => prompt_text(args.no_interactive, "Email", None)?,
+            };
+            let password = match args.password {
+                Some(p) => p,
+                None => prompt_password(args.no_interactive)?,
+            };
+            eprintln!("[gt init] logging in to {server} …");
+            client.login(&email, &password).await?
+        }
     };
-    let password = match args.password {
-        Some(p) => p,
-        None => prompt_password(args.no_interactive)?,
-    };
-
-    eprintln!("[gt init] logging in to {server} …");
-    let tokens = client.login(&email, &password).await?;
 
     // Workspace: offer the catalog; a flag short-circuits the menu but is still
     // validated against the catalog so a typo fails here, not at first use.

@@ -101,6 +101,10 @@ struct InitCmd {
     /// Login password (prompted, hidden, if omitted).
     #[arg(long, env = "GT_PASSWORD")]
     password: Option<String>,
+    /// Log in with a Personal Access Token (`gtpat_…`) instead of email+password. The token
+    /// becomes the access token directly; `--email`/`--password` are ignored when it is set.
+    #[arg(long, env = "GT_TOKEN")]
+    token: Option<String>,
     /// Workspace id to target (offered as a menu if omitted).
     #[arg(long)]
     workspace: Option<String>,
@@ -206,6 +210,7 @@ fn run_async(cmd: Command) -> i32 {
                     server: c.server,
                     email: c.email,
                     password: c.password,
+                    token: c.token,
                     workspace: c.workspace,
                     rig: c.rig,
                     role: c.role,
