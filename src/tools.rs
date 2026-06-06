@@ -15,9 +15,7 @@ use anyhow::{Context, Result};
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::handler::server::ServerHandler;
-use rmcp::model::{
-    CallToolResult, Content, Implementation, ServerCapabilities, ServerInfo,
-};
+use rmcp::model::{CallToolResult, Content, Implementation, ServerCapabilities, ServerInfo};
 use rmcp::transport::io::stdio;
 use rmcp::{serve_server, tool, tool_handler, tool_router};
 use schemars::JsonSchema;
@@ -56,7 +54,10 @@ impl GtTools {
         }
     }
 
-    #[tool(name = "gt_help", description = "Print the full `gt` CLI help (every command + flags).")]
+    #[tool(
+        name = "gt_help",
+        description = "Print the full `gt` CLI help (every command + flags)."
+    )]
     fn gt_help(&self) -> CallToolResult {
         run_gt(&["--help"])
     }
@@ -121,7 +122,11 @@ impl ServerHandler for GtTools {
 /// notice never leaks into a tool's output.
 fn run_gt(args: &[&str]) -> CallToolResult {
     let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("gt"));
-    match Command::new(&exe).args(args).env("GT_NO_UPDATE_CHECK", "1").output() {
+    match Command::new(&exe)
+        .args(args)
+        .env("GT_NO_UPDATE_CHECK", "1")
+        .output()
+    {
         Ok(out) => {
             let mut body = String::from_utf8_lossy(&out.stdout).into_owned();
             let err = String::from_utf8_lossy(&out.stderr);

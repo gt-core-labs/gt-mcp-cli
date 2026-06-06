@@ -17,7 +17,11 @@ pub fn list() -> Result<()> {
     }
     let active = store.active_name()?;
     for name in names {
-        let mark = if Some(&name) == active.as_ref() { "*" } else { " " };
+        let mark = if Some(&name) == active.as_ref() {
+            "*"
+        } else {
+            " "
+        };
         println!("{mark} {name}");
     }
     Ok(())
@@ -44,7 +48,10 @@ pub fn show() -> Result<()> {
     println!("workspace:  {}", cfg.workspace);
     println!("rig:        {}", cfg.rig);
     println!("role:       {}", cfg.role.as_deref().unwrap_or("(none)"));
-    println!("access_token:  <redacted, {} chars>", cfg.access_token.len());
+    println!(
+        "access_token:  <redacted, {} chars>",
+        cfg.access_token.len()
+    );
     println!("refresh_token: <redacted>");
     Ok(())
 }

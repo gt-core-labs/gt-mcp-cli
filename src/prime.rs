@@ -54,10 +54,7 @@ fn resolve_workspace(cfg: &Config, proj: Option<&ProjectConfig>) -> Resolved {
     if let Some(ws) = non_empty("GT_WORKSPACE") {
         return Resolved::Env(ws);
     }
-    if let Some(ws) = proj
-        .map(|c| c.workspace.as_str())
-        .filter(|s| !s.is_empty())
-    {
+    if let Some(ws) = proj.map(|c| c.workspace.as_str()).filter(|s| !s.is_empty()) {
         return Resolved::ProjectConfig(ws.to_string());
     }
     if let Some(ws) = cfg.default_workspace.as_deref().filter(|s| !s.is_empty()) {
@@ -108,13 +105,20 @@ pub fn run(json: bool) -> i32 {
 
     // Role + rig also resolve env > .gt-config, so the whole context lives in the config.
     let role = non_empty("GT_ROLE")
-        .or_else(|| proj.as_ref().and_then(|c| c.role.clone()).filter(|s| !s.is_empty()))
+        .or_else(|| {
+            proj.as_ref()
+                .and_then(|c| c.role.clone())
+                .filter(|s| !s.is_empty())
+        })
         .unwrap_or_else(|| "unknown".to_string());
-    let rig = non_empty("GT_RIG")
-        .or_else(|| proj.as_ref().map(|c| c.rig.clone()).filter(|s| !s.is_empty()));
+    let rig = non_empty("GT_RIG").or_else(|| {
+        proj.as_ref()
+            .map(|c| c.rig.clone())
+            .filter(|s| !s.is_empty())
+    });
 
     if json {
-        let _ = println!(
+        println!(
             "{}",
             json!({
                 "workspace": workspace,
@@ -185,7 +189,6 @@ mod tests {
     fn cfg_ws(ws: &str) -> Config {
         Config {
             default_workspace: Some(ws.to_string()),
-            ..Config::default()
         }
     }
 
@@ -203,7 +206,10 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         std::env::set_var("GT_WORKSPACE", "");
-        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Missing));
+        assert!(matches!(
+            resolve_workspace(&no_cfg(), None),
+            Resolved::Missing
+        ));
         clear();
     }
 
@@ -211,7 +217,10 @@ mod tests {
     fn missing_without_opt_in_aborts() {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
-        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Missing));
+        assert!(matches!(
+            resolve_workspace(&no_cfg(), None),
+            Resolved::Missing
+        ));
         clear();
     }
 
@@ -220,7 +229,10 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         std::env::set_var("GT_WORKSPACE_DEFAULT_OPT_IN", "1");
-        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::GraceDefault));
+        assert!(matches!(
+            resolve_workspace(&no_cfg(), None),
+            Resolved::GraceDefault
+        ));
         clear();
     }
 
@@ -229,7 +241,10 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap();
         clear();
         std::env::set_var("GT_WORKSPACE_DEFAULT_OPT_IN", "0");
-        assert!(matches!(resolve_workspace(&no_cfg(), None), Resolved::Missing));
+        assert!(matches!(
+            resolve_workspace(&no_cfg(), None),
+            Resolved::Missing
+        ));
         clear();
     }
 

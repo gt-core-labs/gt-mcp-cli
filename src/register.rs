@@ -50,10 +50,7 @@ pub fn run(global: bool, remove: bool) -> Result<()> {
         .to_string_lossy()
         .into_owned();
     for (name, sub) in SERVERS {
-        servers.insert(
-            name.to_string(),
-            json!({ "command": exe, "args": [sub] }),
-        );
+        servers.insert(name.to_string(), json!({ "command": exe, "args": [sub] }));
     }
     write_json(&path, &root)?;
     eprintln!(

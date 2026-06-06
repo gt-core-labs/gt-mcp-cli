@@ -83,7 +83,11 @@ pub async fn run(args: InitArgs) -> Result<()> {
             if !workspaces.iter().any(|x| x.id == w) {
                 bail!(
                     "workspace `{w}` not in the catalog; available: {}",
-                    workspaces.iter().map(|x| x.id.as_str()).collect::<Vec<_>>().join(", ")
+                    workspaces
+                        .iter()
+                        .map(|x| x.id.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 );
             }
             w
@@ -111,7 +115,10 @@ pub async fn run(args: InitArgs) -> Result<()> {
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "rig `{r}` not in workspace `{workspace}`; available: {}",
-                    rigs.iter().map(|x| x.name.as_str()).collect::<Vec<_>>().join(", ")
+                    rigs.iter()
+                        .map(|x| x.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             })?,
         None => {

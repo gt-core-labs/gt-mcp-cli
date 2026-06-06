@@ -39,8 +39,8 @@ pub async fn resources(cfg: &ProjectConfig) -> Result<()> {
 
 /// `gt mcp resource <uri>` — read one resource (e.g. `gt://issues?limit=10`).
 pub async fn resource(cfg: &ProjectConfig, uri: &str) -> Result<()> {
-    let v =
-        gt_mcp::invoke::read_resource(&cfg.server_url, &cfg.access_token, &cfg.workspace, uri).await?;
+    let v = gt_mcp::invoke::read_resource(&cfg.server_url, &cfg.access_token, &cfg.workspace, uri)
+        .await?;
     print_json(&v)
 }
 
@@ -62,6 +62,9 @@ fn parse_args(args: Option<String>) -> Result<Option<Value>> {
 }
 
 fn print_json(v: &Value) -> Result<()> {
-    println!("{}", serde_json::to_string_pretty(v).context("serialize result")?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(v).context("serialize result")?
+    );
     Ok(())
 }

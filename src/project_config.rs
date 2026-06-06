@@ -121,7 +121,8 @@ impl ConfigStore {
         if !path.exists() {
             return Ok(None);
         }
-        let raw = std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+        let raw =
+            std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
         let cfg = toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
         Ok(Some(cfg))
     }
@@ -132,7 +133,8 @@ impl ConfigStore {
         if !path.exists() {
             return Ok(None);
         }
-        let raw = std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+        let raw =
+            std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
         let active: Active =
             toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
         Ok(active.active)
@@ -338,7 +340,10 @@ mod tests {
         assert_eq!(normalize_server_url("https://h/mcp"), "https://h");
         assert_eq!(normalize_server_url("https://h/mcp/"), "https://h");
         assert_eq!(normalize_server_url("https://h/"), "https://h");
-        assert_eq!(normalize_server_url("http://127.0.0.1:8765"), "http://127.0.0.1:8765");
+        assert_eq!(
+            normalize_server_url("http://127.0.0.1:8765"),
+            "http://127.0.0.1:8765"
+        );
         assert_eq!(normalize_server_url("  https://h/mcp  "), "https://h");
     }
 

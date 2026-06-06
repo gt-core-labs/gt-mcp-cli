@@ -50,7 +50,10 @@ fn do_update(current: &str, check_only: bool) -> Result<()> {
             .get_latest_release()
             .context("query the latest release")?;
         if self_update::version::bump_is_greater(current, &latest.version).unwrap_or(false) {
-            println!("update available: {current} → {} (run `gt update`)", latest.version);
+            println!(
+                "update available: {current} → {} (run `gt update`)",
+                latest.version
+            );
         } else {
             println!("gt {current} is up to date");
         }
