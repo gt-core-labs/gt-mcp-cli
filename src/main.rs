@@ -50,6 +50,10 @@ enum Command {
     },
     /// First-run wizard: log in, pick a workspace + rig, save a per-project config.
     Init(InitCmd),
+    /// Authenticate and save a per-project config — alias of `init`. `gt login` runs the
+    /// email+password flow against the `gt` provider; `gt login --token gtpat_…` uses a
+    /// Personal Access Token. Same flags as `init`; both end by writing `.gt-config/`.
+    Login(InitCmd),
     /// MCP client against the active config: no subcommand = stdio proxy (for `.mcp.json`);
     /// `call`/`list`/`resources`/`resource` drive tools from the shell.
     Mcp {
@@ -205,7 +209,9 @@ fn run_async(cmd: Command) -> i32 {
     };
     let result: Result<()> = rt.block_on(async move {
         match cmd {
-            Command::Init(c) => {
+            // `init` and its `login` alias share the same flags + flow (both end by saving
+            // a config); the only difference is the verb the user types.
+            Command::Init(c) | Command::Login(c) => {
                 init::run(InitArgs {
                     server: c.server,
                     email: c.email,
