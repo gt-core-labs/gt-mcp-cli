@@ -12,7 +12,10 @@ use crate::project_config::ProjectConfig;
 /// `gt mcp call <tool> '<json-args>'` — `args` may be a JSON object string, `-` for stdin, or
 /// omitted (no arguments).
 pub async fn call(cfg: &ProjectConfig, tool: &str, args: Option<String>) -> Result<()> {
-    let parsed = parse_args(args)?;
+    // hq-rig-isolation.6: inject the rig from the active config into every tool call so
+    // tools that accept `rig` (e.g. issues.list.execute) automatically scope to the right
+    // rig without the caller having to pass it explicitly. Unknown tools ignore the field.
+    let parsed = inject_rig(parse_args(args)?, &cfg.rig);
     let v = gt_mcp::invoke::call_tool(
         &cfg.server_url,
         &cfg.access_token,
@@ -22,6 +25,21 @@ pub async fn call(cfg: &ProjectConfig, tool: &str, args: Option<String>) -> Resu
     )
     .await?;
     print_json(&v)
+}
+
+/// Inject `rig` into the tool arguments when it is not already set. Absent or empty
+/// config rig = no injection (back-compat). Caller-supplied `rig` in the args is preserved.
+fn inject_rig(args: Option<Value>, rig: &str) -> Option<Value> {
+    if rig.is_empty() {
+        return args;
+    }
+    let mut obj = match args {
+        Some(Value::Object(m)) => m,
+        Some(other) => return Some(other), // non-object args: pass through unchanged
+        None => serde_json::Map::new(),
+    };
+    obj.entry("rig").or_insert_with(|| Value::String(rig.to_string()));
+    Some(Value::Object(obj))
 }
 
 /// `gt mcp list` — tools (name + description + input schema).
